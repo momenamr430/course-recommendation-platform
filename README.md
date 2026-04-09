@@ -20,3 +20,5 @@ A system that recommends courses from multiple platforms.
 
 ## Description
 This project focuses on building a recommendation system and visualizing data to help users find relevant learning resources.
+
+⚠️ This project is still in progress.
