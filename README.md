@@ -22,3 +22,10 @@ A system that recommends courses from multiple platforms.
 This project focuses on building a recommendation system and visualizing data to help users find relevant learning resources.
 
 ⚠️ This project is still in progress.
+## 🚧 Future Work
+
+- Add advanced recommendation system
+- Improve data visualization using graphs and heatmaps
+- Implement 3D point cloud analysis for clustering reviews, prices, and ratings
+- Build a scalable and user-friendly GUI
+- Enhance system performance and accuracy
