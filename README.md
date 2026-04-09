@@ -6,6 +6,7 @@ A system that recommends courses from multiple platforms.
 ## Overview
 
 This project aims to build a course recommendation system that collects data from multiple platforms such as Coursera, YouTube, and Pluralsight, then analyzes and visualizes it to help users discover the most relevant learning resources.
+
 This project demonstrates skills in data collection, analysis, and building real-world recommendation systems.
 ## Features
 - Search courses from Coursera, YouTube, and Pluralsight
