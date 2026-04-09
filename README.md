@@ -1,10 +1,12 @@
-## Overview
 
-This project aims to build a course recommendation system that collects data from multiple platforms such as Coursera, YouTube, and Pluralsight, then analyzes and visualizes it to help users discover the most relevant learning resources.
 # Course Recommendation Platform
 
 A system that recommends courses from multiple platforms.
 
+## Overview
+
+This project aims to build a course recommendation system that collects data from multiple platforms such as Coursera, YouTube, and Pluralsight, then analyzes and visualizes it to help users discover the most relevant learning resources.
+This project demonstrates skills in data collection, analysis, and building real-world recommendation systems.
 ## Features
 - Search courses from Coursera, YouTube, and Pluralsight
 - Data visualization using NetworkX
@@ -21,10 +23,9 @@ A system that recommends courses from multiple platforms.
 - Graph representation
 - Visualization
 
-## Description
-This project focuses on building a recommendation system and visualizing data to help users find relevant learning resources.
 
-⚠️ This project is still in progress.
+
+
 ## 🚧 Future Work
 
 - Add advanced recommendation system
@@ -32,3 +33,5 @@ This project focuses on building a recommendation system and visualizing data to
 - Implement 3D point cloud analysis for clustering reviews, prices, and ratings
 - Build a scalable and user-friendly GUI
 - Enhance system performance and accuracy
+## 📌 Status
+🚧 In Progress
