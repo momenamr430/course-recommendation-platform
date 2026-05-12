@@ -136,6 +136,7 @@ Future updates will mainly focus on improving the frontend experience and adding
 
 ---
 
-## Author
+## Authors
 
-Developed by Momen Amr
+- Momen Amr
+- Malek Abdelrahime
