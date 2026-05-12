@@ -23,12 +23,12 @@ from fastapi.templating import Jinja2Templates
 import arabic_reshaper
 from bidi.algorithm import get_display
 import textwrap
+import os
 
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
 
-API_KEY = "1f1175febe989cbf4a3b8c3fd0460b8be8e07c3e844227b2dcb441b93c43c3d3"
-
+API_KEY = os.getenv("SERPAPI_KEY")
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
