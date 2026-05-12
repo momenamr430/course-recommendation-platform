@@ -1,59 +1,40 @@
-# Course Recommendation Platform
+# Course Analytics & Recommendation Platform
 
-An intelligent course analytics and recommendation system that searches across multiple learning platforms, analyzes course quality and popularity, and visualizes the results using advanced graphs and recommendation algorithms.
+A course recommendation and analytics platform that searches across multiple learning platforms, analyzes course data, and visualizes insights using graphs and recommendation algorithms.
 
 ---
 
 ## Overview
 
-This project is designed to collect and analyze online courses from platforms such as Coursera, YouTube, and Pluralsight.  
-The system performs web scraping, data processing, recommendation analysis, and visualization to help users discover high-quality learning resources efficiently.
+This project focuses on collecting and analyzing online course data from platforms such as Coursera, YouTube, and Pluralsight.
 
-The platform combines data analysis, graph theory, and visualization techniques to generate smart recommendations based on ratings, pricing, instructor authority, and enrollment popularity.
+The main goal of the project is to explore web scraping, data analysis, graph-based analytics, and recommendation logic to help users discover relevant learning resources.
 
-This project demonstrates practical skills in:
-- Web scraping
-- Data analysis
-- Recommendation systems
-- Graph visualization
-- Frontend and backend integration
-- Real-world AI-inspired analytics systems
+The scraping, data processing, recommendation logic, mathematical analysis, and visualization systems were designed and implemented by the project authors.
+
+The frontend and parts of the backend structure were developed using AI-assisted vibe coding workflows to accelerate UI development and improve the overall user experience.
 
 ---
 
 ## Features
 
-- Search courses from:
-  - Coursera
-  - YouTube
-  - Pluralsight
-
-- Interactive modern frontend interface
-
-- AI-inspired recommendation system
-
-- Mathematical recommendation algorithms:
-  - Best ROI detection
-  - Centroid-based recommendation
-  - Instructor authority analysis
-
-- Network graph visualization using NetworkX
-
-- ROI heatmap visualization
-
+- Multi-platform course search
+- Web scraping and automated data collection
+- Course recommendation analysis
+- ROI-based recommendation logic
+- Instructor authority analysis using graphs
+- Centroid-based recommendation selection
+- Network graph visualization
+- Heatmap visualization
 - 3D market analysis visualization
-
-- CSV export functionality
-
-- FastAPI backend integration
-
-- Dynamic frontend with sorting and filtering
+- Dynamic filtering and sorting
+- CSV export support
 
 ---
 
 ## Technologies
 
-### Backend
+### Core Technologies
 - Python
 - FastAPI
 - Selenium
@@ -62,46 +43,47 @@ This project demonstrates practical skills in:
 - Pandas
 - NumPy
 
-### Data Visualization
-- Matplotlib
+### Visualization & Analysis
 - NetworkX
+- Matplotlib
+- Graph Theory
+- Data Analysis
 
 ### Frontend
 - HTML
-- Tailwind CSS
 - JavaScript
+- Tailwind CSS
 - Font Awesome
 
-### Additional Tools
+### Tools & APIs
 - SerpAPI
 - WebDriver Manager
 
 ---
 
-## Concepts
+## Main Concepts
 
-- Web scraping
-- Recommendation systems
-- Data processing
-- Graph theory
-- Centrality analysis
-- Heatmap generation
-- 3D visualization
-- Network analysis
-- User experience design
+- Web Scraping
+- Recommendation Systems
+- Data Processing
+- Graph Analysis
+- Network Centrality
+- Data Visualization
+- Heatmap Analysis
+- 3D Data Representation
 
 ---
 
-## Algorithms Used
+## Recommendation Algorithms
 
-### 1. Best ROI Algorithm
-Detects courses with the highest rating-to-price ratio.
+### Best ROI Analysis
+Identifies courses with the best balance between price and rating.
 
-### 2. Centroid Recommendation Algorithm
-Uses mathematical distance calculations to find the most balanced course based on popularity and quality.
+### Centroid-Based Recommendation
+Uses mathematical distance calculations to determine balanced recommendations based on popularity and quality metrics.
 
-### 3. Instructor Authority Analysis
-Uses graph centrality techniques to identify influential instructors connected to multiple high-quality courses.
+### Instructor Authority Analysis
+Uses graph centrality concepts to identify influential instructors connected to multiple high-quality courses.
 
 ---
 
@@ -109,20 +91,19 @@ Uses graph centrality techniques to identify influential instructors connected t
 
 - Instructor-Course Network Graph
 - ROI Density Heatmap
-- 3D Market Distribution Plot
+- 3D Market Analysis Plot
 
 ---
 
 ## Future Improvements
 
-- Improve frontend user experience and responsiveness
-- Add more learning platforms
-- Implement machine learning recommendation models
-- Add real-time analytics dashboards
+- Improve frontend user experience
+- Add additional learning platforms
+- Implement advanced machine learning recommendation models
+- Optimize scraping speed and scalability
 - Improve recommendation accuracy
-- Add user accounts and saved learning paths
-- Deploy the platform publicly
-- Optimize scraping and performance
+- Add real-time analytics
+- Deploy a public production version
 
 ---
 
@@ -130,9 +111,9 @@ Uses graph centrality techniques to identify influential instructors connected t
 
 ✅ Completed
 
-The core platform, recommendation system, visualizations, and analytics engine are fully implemented.
+The platform is functional and fully implemented.
 
-Future updates will mainly focus on improving the frontend experience and adding more advanced recommendation capabilities.
+Future updates will mainly focus on improving the frontend experience and expanding recommendation capabilities.
 
 ---
 
