@@ -1,0 +1,15 @@
+fastapi
+uvicorn
+numpy
+pandas
+matplotlib
+networkx
+requests
+beautifulsoup4
+selenium
+webdriver-manager
+serpapi
+arabic-reshaper
+python-bidi
+jinja2
+lxml
