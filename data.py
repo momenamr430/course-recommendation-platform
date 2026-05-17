@@ -23,18 +23,207 @@ from fastapi.templating import Jinja2Templates
 import arabic_reshaper
 from bidi.algorithm import get_display
 import textwrap
+from pydantic import BaseModel
+from typing import List
+from openai import OpenAI
 import os
 
+plt.style.use('dark_background')
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
+API_KEY = os.environ.get("SERPAPI_KEY")
+OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY")
+OPENROUTER_API_KEY_2 = os.environ.get("OPENROUTER_API_KEY_2")
 
-API_KEY = os.getenv("SERPAPI_KEY")
+# ---: AI Setup ---
+client = OpenAI(
+    base_url="https://openrouter.ai/api/v1",
+    api_key= OPENROUTER_API_KEY
+)
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
     return templates.TemplateResponse(request=request, name="index.html")
 
+# =========================================================================
+# --- AI ENDPOINTS ---
+# =========================================================================
 
+@app.get("/api/roadmap")
+def get_roadmap(query: str):
+    try:
+        response = client.chat.completions.create(
+            model="meta-llama/llama-3-8b-instruct",
+            messages=[{"role": "user", "content": f"Create a concise, step-by-step roadmap to learn {query}. Use bullet points."}]
+        )
+        return {"status": "success", "roadmap": response.choices[0].message.content}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.get("/api/insight")
+def get_insight(title: str, platform: str):
+    try:
+        prompt = f"Extract what a student will learn from a course titled '{title}' on {platform}. Return 3 short bullet points only."
+        response = requests.post(
+            url="https://openrouter.ai/api/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {OPENROUTER_API_KEY_2}",
+                "Content-Type": "application/json"
+            },
+            data=json.dumps({
+                "model": "openai/gpt-3.5-turbo",
+                "messages": [{"role": "user", "content": prompt}]
+            })
+        )
+        result = response.json()
+        return {"status": "success", "insight": result["choices"][0]["message"]["content"]}
+    except Exception as e:
+        return {"status": "error", "message": "Could not generate insight."}
+
+
+@app.get("/api/compare")
+def compare_courses(t1: str, r1: str, p1: str, l1: str, t2: str, r2: str, p2: str, l2: str):
+    try:
+        def get_text(url):
+            try:
+                headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+                resp = requests.get(url, headers=headers, timeout=6)
+                return BeautifulSoup(resp.text, "html.parser").get_text()[:2000]  # Grab a bit more text
+            except Exception:
+                return "Content blocked by site."
+
+        prompt = f"""
+        You are an expert course advisor. Compare the following two courses based on their syllabus snippets.
+
+        Course 1: {t1}
+        Syllabus Snippet: {get_text(l1)}
+
+        Course 2: {t2}
+        Syllabus Snippet: {get_text(l2)}
+
+        YOU MUST STRICTLY FOLLOW THIS EXACT MARKDOWN TABLE FORMAT. Fill in the brackets with detailed analysis:
+
+        | Feature | {t1} | {t2} |
+        | :--- | :--- | :--- |
+        | **Topic Coverage** | [Deep analysis of topics covered] | [Deep analysis of topics covered] |
+        | **Skills Gained** | [List of specific skills] | [List of specific skills] |
+        | **Level of Expertise** | [Beginner/Intermediate/Advanced] | [Beginner/Intermediate/Advanced] |
+        | **Hands-on Experience** | [Labs/Projects/Exercises mentioned] | [Labs/Projects/Exercises mentioned] |
+        | **Pros** | [Main strengths] | [Main strengths] |
+        | **Cons** | [Main weaknesses] | [Main weaknesses] |
+        | **Cost** | {p1} | {p2} |
+        | **Rating** | {r1} | {r2} |
+
+        RULES:
+        1. Return ONLY the Markdown table.
+        2. Do not write any text before or after the table.
+        3. Make the comparisons highly detailed.
+        """
+
+        response = client.chat.completions.create(
+            model="meta-llama/llama-3-8b-instruct",
+            messages=[{"role": "user", "content": prompt}]
+        )
+        return {"status": "success", "comparison": response.choices[0].message.content.strip()}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
+@app.get("/api/relevance")
+def get_relevance(query: str, title: str):
+    try:
+        prompt = f"""
+        Evaluate the course '{title}' for a student whose ultimate career goal is: '{query}'.
+        Score this course from 1 to 10 on the following 5 axes. 
+
+        Return ONLY a valid JSON object. Do not include markdown formatting or backticks. Format exactly like this:
+        {{
+            "Theory": 8,
+            "Hands_On": 7,
+            "Interview_Prep": 5,
+            "Tool_Mastery": 9,
+            "Portfolio_Building": 6,
+            "summary": "One concise sentence explaining why it fits."
+        }}
+        """
+        response = client.chat.completions.create(
+            model="meta-llama/llama-3-8b-instruct",
+            messages=[{"role": "user", "content": prompt}]
+        )
+
+      
+        raw_text = response.choices[0].message.content.strip()
+        if raw_text.startswith("```json"):
+            raw_text = raw_text[7:-3].strip()
+        elif raw_text.startswith("```"):
+            raw_text = raw_text[3:-3].strip()
+
+        return json.loads(raw_text)
+    except Exception as e:
+        return {"error": str(e), "summary": "Failed to analyze relevance."}
+# --- Stack Auditor Schema ---
+class StackRequest(BaseModel):
+    courses: List[str]
+    role: str
+
+
+@app.post("/api/audit")
+def audit_stack(req: StackRequest):
+    try:
+        courses_str = "\n".join([f"- {c}" for c in req.courses])
+        prompt = f"""
+        You are an expert Enterprise Learning & Development Architect.
+        A student wants to achieve the role of: '{req.role}'. 
+        They have selected the following courses for their curriculum stack:
+        {courses_str}
+
+        Please provide a concise, high-level audit of this curriculum stack. Format STRICTLY in Markdown. Use these headings:
+        ### 🌟 Stack Strengths
+        [What does this combination cover well?]
+
+        ### ⚠️ Redundancies
+        [Are there overlapping topics between these courses?]
+
+        ### 🔍 Critical Gaps
+        [What essential skills for a {req.role} are missing from this stack?]
+
+        ### ⚖️ Final Verdict
+        [1-2 sentences summarizing if this is a good learning path]
+        """
+
+        response = client.chat.completions.create(
+            model="meta-llama/llama-3-8b-instruct",
+            messages=[{"role": "user", "content": prompt}]
+        )
+        return {"status": "success", "audit": response.choices[0].message.content}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
+# ---AI Tutor Chat Endpoint ---
+@app.get("/api/tutor")
+def tutor_chat(course_title: str, user_question: str):
+    try:
+        prompt = f"""
+        You are an expert AI Tutor. The student is asking a question about a course titled '{course_title}'.
+
+        Question: {user_question}
+
+        If you don't know the answer based on general knowledge of this course title, be honest. 
+        Keep your answer helpful, concise, and professional. 
+        Return the answer in plain text.
+        """
+
+        response = client.chat.completions.create(
+            model="meta-llama/llama-3-8b-instruct",
+            messages=[{"role": "user", "content": prompt}]
+        )
+        return {"status": "success", "reply": response.choices[0].message.content}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+# =========================================================================
+# ---SCRAPER---
+# =========================================================================
 @app.get("/api/search")
 def search_courses(query: str):
     courses = []
@@ -218,10 +407,6 @@ def search_courses(query: str):
 
     df = pd.DataFrame(courses).drop_duplicates(subset="title").reset_index(drop=True)
 
-    # =========================================================================
-    # --- NEW: ENTERPRISE MATH ENGINE & RECOMMENDATION ALGORITHMS ---
-    # =========================================================================
-
     # Initialize tagging columns
     df['is_centroid'] = False
     df['is_best_value'] = False
@@ -272,25 +457,21 @@ def search_courses(query: str):
         df['math_enrollment'] = math_enrollments
 
         # --- Algorithm 1: The Best Value (ROI Heatmap Logic) ---
-        # Highest rating for the lowest price. Score = Rating / (Price + 1) to avoid div zero
         df['roi_score'] = df['math_rating'] / (df['math_price'] + 1)
         best_value_idx = df['roi_score'].idxmax()
         df.at[best_value_idx, 'is_best_value'] = True
 
         # --- Algorithm 2: The 3D Centroid Pick ---
-        # Find mathematical center of normalized highest ratings and highest enrollments
         max_rating = df['math_rating'].max()
         max_enrollment = df['math_enrollment'].max()
 
         distances = []
         for _, row in df.iterrows():
-            # Euclidean distance to the "perfect" ideal point (max rating, max enrollment)
             dist = math.sqrt(((max_rating - row['math_rating']) ** 2) + (
                         (math.log10(max_enrollment + 1) - math.log10(row['math_enrollment'] + 1)) ** 2))
             distances.append(dist)
 
         df['centroid_dist'] = distances
-        # We want the shortest distance to the ideal centroid point (excluding the one already picked for Best Value if possible)
         available_for_centroid = df[~df['is_best_value']]
         if not available_for_centroid.empty:
             centroid_idx = available_for_centroid['centroid_dist'].idxmin()
@@ -299,7 +480,6 @@ def search_courses(query: str):
             df.at[df['centroid_dist'].idxmin(), 'is_centroid'] = True
 
         # --- Algorithm 3: Top Authority Instructor (Network Logic) ---
-        # Build a temporary graph to calculate Centrality
         temp_g = nx.Graph()
         for _, row in df.iterrows():
             title = str(row["title"]).strip()
@@ -316,7 +496,6 @@ def search_courses(query: str):
                                 temp_g.nodes[node].get('type') == 'instructor'}
             if instructors_only:
                 top_instructor = max(instructors_only, key=instructors_only.get)
-                # Find the highest rated course by this instructor
                 inst_courses = df[df['instructor'].str.contains(top_instructor, case=False, na=False)]
                 available_for_inst = inst_courses[~inst_courses['is_best_value'] & ~inst_courses['is_centroid']]
 
@@ -327,13 +506,7 @@ def search_courses(query: str):
                     top_inst_idx = inst_courses['math_rating'].idxmax()
                     df.at[top_inst_idx, 'is_top_instructor'] = True
 
-    # Drop the temporary math columns before sending to frontend
-    # Drop the temporary math columns before sending to frontend
     cols_to_drop = ['math_enrollment', 'roi_score', 'centroid_dist']
-
-    # =========================================================================
-    # --- ORIGINAL GRAPHING LOGIC REMAINS EXACTLY THE SAME ---
-    # =========================================================================
 
     # --- 4. Network Graph ---
     g = nx.Graph()
@@ -370,11 +543,18 @@ def search_courses(query: str):
     instructor_nodes = [n for n, attr in g.nodes(data=True) if attr.get('type') == 'instructor']
     course_nodes = [n for n, attr in g.nodes(data=True) if attr.get('type') == 'course']
 
-    nx.draw_networkx_nodes(g, pos, nodelist=instructor_nodes, node_color='lightblue', node_size=1500,
-                           edgecolors='white')
-    nx.draw_networkx_nodes(g, pos, nodelist=course_nodes, node_color='lightgreen', node_size=900, edgecolors='white')
+    # Instructors = Bright Blue, Courses (Titles) = Bright Purple
+    nx.draw_networkx_nodes(g, pos, nodelist=instructor_nodes, node_color='#38bdf8', node_size=1500, edgecolors='white')
+    nx.draw_networkx_nodes(g, pos, nodelist=course_nodes, node_color='#c084fc', node_size=900, edgecolors='white')
+
+    # Draw edges
     nx.draw_networkx_edges(g, pos, alpha=0.3, width=1.5, edge_color='#888888')
-    nx.draw_networkx_labels(g, pos, labels=wrapped_labels, font_size=8, font_weight="bold")
+
+    # Draw labels ONCE with white text
+    nx.draw_networkx_labels(g, pos, labels=wrapped_labels, font_size=8, font_weight="bold", font_color="white")
+
+    plt.axis('off')
+    plt.tight_layout()
 
     plt.axis('off')
     plt.tight_layout()
@@ -383,7 +563,9 @@ def search_courses(query: str):
     plt.savefig(buf_net, format="png", bbox_inches='tight', dpi=150)
     net_img = base64.b64encode(buf_net.getvalue()).decode('utf-8')
     plt.close()
-
+    nodes = [{"id": n, "label": (n[:15] + '..') if len(n) > 15 else n, "group": attr.get('type')}
+             for n, attr in g.nodes(data=True)]
+    edges = [{"from": u, "to": v} for u, v in g.edges()]
     # --- 5. Heatmap  ---
     X_list, Y_list = [], []
     for _, row in df.iterrows():
@@ -465,26 +647,25 @@ def search_courses(query: str):
             platforms.append(plat)
 
     img_3d = ""
+    nodes = [{"id": n, "label": (n[:15] + '..') if len(n) > 15 else n, "group": attr.get('type')}
+             for n, attr in g.nodes(data=True)]
+    edges = [{"from": u, "to": v} for u, v in g.edges()]
+
     if len(x_vals) > 0:
         color_map = {"Pluralsight": "orange", "Coursera": "royalblue", "YouTube": "tomato"}
         colors = [color_map.get(p, "gray") for p in platforms]
-
         fig = plt.figure(figsize=(12, 8))
         ax = fig.add_subplot(111, projection='3d')
-
         ax.scatter(x_vals, y_vals, z_vals, c=colors, s=120, edgecolors='black', linewidths=0.5, alpha=0.85,
                    depthshade=True)
-
         for xi, yi, zi, label in zip(x_vals, y_vals, z_vals, labels):
             ax.text(xi, yi, zi, f"  {label}", fontsize=7, alpha=0.8)
-
         ax.set_xlabel("Rating (0–5)", fontsize=11, labelpad=10)
         ax.set_xlim(1, 5)
         ax.set_yticks([0, 1, 2])
         ax.set_yticklabels(["Pluralsight", "Coursera", "YouTube"])
         ax.set_ylabel("Platform", fontsize=11, labelpad=10)
         ax.set_zlabel("Enrollment (Log10 Scale)", fontsize=11, labelpad=10)
-
         legend_handles = [
             plt.Line2D([0], [0], marker='o', color='w', markerfacecolor='orange', markersize=10, label='Pluralsight'),
             plt.Line2D([0], [0], marker='o', color='w', markerfacecolor='royalblue', markersize=10, label='Coursera'),
@@ -493,19 +674,17 @@ def search_courses(query: str):
         ax.legend(handles=legend_handles, loc='upper left', fontsize=10)
         ax.view_init(elev=60, azim=135)
         plt.tight_layout()
-
         buf_3d = io.BytesIO()
         plt.savefig(buf_3d, format="png", bbox_inches='tight', dpi=120)
         img_3d = base64.b64encode(buf_3d.getvalue()).decode('utf-8')
         plt.close()
 
-        return {
-            "status": "success",
-            "courses": df.to_dict(orient="records"),
-            "network_image": net_img,
-            "heatmap_image": heat_img,
-            "img_3d": img_3d
-        }
+    return {
+        "status": "success",
+        "courses": df.to_dict(orient="records"),
+        "network_data": {"nodes": nodes, "edges": edges},
+        "heatmap_image": heat_img,
+        "img_3d": img_3d
+    }
 
-    return {"status": "success", "courses": df.to_dict(orient="records"), "network_image": net_img,
-            "heatmap_image": heat_img}
+
