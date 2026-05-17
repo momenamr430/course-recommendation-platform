@@ -6,10 +6,12 @@ matplotlib
 networkx
 requests
 beautifulsoup4
+google-search-results
 selenium
 webdriver-manager
-serpapi
+jinja2
 arabic-reshaper
 python-bidi
-jinja2
+pydantic
+openai
 lxml
