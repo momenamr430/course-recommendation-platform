@@ -2,70 +2,143 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Enterprise Course Analytics</title>
+    <title>Enterprise Course Analytics & AI</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.9/standalone/umd/vis-network.min.js"></script>
     <style>
+            #loading.hidden {
+           display: none !important;
+           pointer-events: none;
+           }
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #0d0d0e; color: #e2e8f0; margin: 0; overflow: hidden; }
         .Pluralsight { background: rgba(249, 115, 22, 0.15); border-color: #f97316; color: #fdba74; }
         .Coursera { background: rgba(59, 130, 246, 0.15); border-color: #3b82f6; color: #93c5fd; }
         .YouTube { background: rgba(239, 68, 68, 0.15); border-color: #ef4444; color: #fca5a5; }
 
-        /* Glowing borders for recommended cards */
-        .glow-gold { box-shadow: 0 0 15px rgba(250, 204, 21, 0.2); border-color: #facc15 !important; }
-        .glow-green { box-shadow: 0 0 15px rgba(52, 211, 153, 0.2); border-color: #34d399 !important; }
-        .glow-blue { box-shadow: 0 0 15px rgba(96, 165, 250, 0.2); border-color: #60a5fa !important; }
+        .glow-gold { box-shadow: 0 0 15px rgba(250, 204, 21, 0.15); border-color: #facc15 !important; }
+        .glow-green { box-shadow: 0 0 15px rgba(52, 211, 153, 0.15); border-color: #34d399 !important; }
+        .glow-blue { box-shadow: 0 0 15px rgba(96, 165, 250, 0.15); border-color: #60a5fa !important; }
+
+        .course-card { transition: all 0.3s ease; }
+        .course-card:hover { transform: translateY(-4px); box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5); }
 
         .spinner { border-top-color: #8b5cf6; animation: spin 1s linear infinite; }
+        .spinner-small { border-top-color: #c084fc; animation: spin 1s linear infinite; border-width: 2px; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
-        /* Custom Scrollbar for sleek look */
         ::-webkit-scrollbar { width: 8px; }
         ::-webkit-scrollbar-track { background: #1a1a1c; }
         ::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
         ::-webkit-scrollbar-thumb:hover { background: #555; }
 
         .nav-active { background-color: #2d2d30; color: #fff; font-weight: bold; border-left: 4px solid #8b5cf6; }
+
+        .markdown-body ul { list-style-type: disc; margin-left: 1.5rem; margin-bottom: 1rem; }
+        .markdown-body p { margin-bottom: 1rem; line-height: 1.6; }
+        .markdown-body strong { color: #c084fc; }
+
+        select option { background-color: #1a1a1c; color: #e2e8f0; }
+
+        .markdown-body table { display: table !important; width: 100% !important; }
+        .markdown-body td { border: 1px solid #3f3f46 !important; padding: 10px !important; }
+
+        .markdown-body th { background-color: #18181b; color: #c084fc; font-weight: bold; font-size: 0.95rem; }
+
+        .markdown-body tr:nth-child(even) { background-color: #1e1e1f; }
+        .markdown-body tr:nth-child(odd) { background-color: #131314; }
+
+        .markdown-body td:first-child { font-weight: bold; color: #c084fc; width: 15%; }
+
+        img { filter: brightness(0.9) contrast(1.1); transition: all 0.3s; }
+        img:hover { filter: brightness(1); transform: scale(1.01); }
+        .tooltip-custom {
+            position: relative;
+        }
+        .tooltip-custom::after {
+            content: "Please wait for analysis to complete...";
+            position: absolute;
+            bottom: 120%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #3f3f46;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 10px;
+            white-space: nowrap;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s;
+        }
+        .tooltip-custom:hover::after {
+            opacity: 1;
+        }
     </style>
 </head>
 <body class="flex h-screen">
 
-    <!-- Sidebar (Google AI Studio Style) -->
+    <!-- Sidebar -->
     <aside class="w-64 bg-[#131314] border-r border-[#2d2d30] flex flex-col transition-all z-20">
         <div class="p-6 text-xl font-bold flex items-center gap-3 border-b border-[#2d2d30]">
             <i class="fa-solid fa-layer-group text-purple-500"></i>
             <span>Course Studio</span>
         </div>
 
-        <nav class="flex-1 px-3 py-6 space-y-2">
+        <nav class="flex-1 px-3 py-6 space-y-2 overflow-y-auto">
+
             <p class="px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Build & Analyze</p>
 
             <button onclick="switchTab('home')" id="nav-home" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-[#2d2d30] transition nav-active text-slate-300">
                 <i class="fa-solid fa-search"></i> Web Scraping
             </button>
-            <button onclick="switchTab('network')" id="nav-network" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-[#2d2d30] transition text-slate-300 hidden-nav">
+            <button onclick="switchTab('roadmap')" id="nav-roadmap" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-[#2d2d30] transition text-slate-300 hidden-nav hidden">
+                <i class="fa-solid fa-wand-magic-sparkles text-purple-400"></i> AI Roadmap
+            </button>
+
+            <button onclick="switchTab('network')" id="nav-network" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-[#2d2d30] transition text-slate-300 hidden-nav hidden">
                 <i class="fa-solid fa-project-diagram"></i> Network Graph
             </button>
-            <button onclick="switchTab('heatmap')" id="nav-heatmap" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-[#2d2d30] transition text-slate-300 hidden-nav">
+            <button onclick="switchTab('heatmap')" id="nav-heatmap" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-[#2d2d30] transition text-slate-300 hidden-nav hidden">
                 <i class="fa-solid fa-fire"></i> ROI Heatmap
             </button>
-            <button onclick="switchTab('3d')" id="nav-3d" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-[#2d2d30] transition text-slate-300 hidden-nav">
+            <button onclick="switchTab('3d')" id="nav-3d" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-[#2d2d30] transition text-slate-300 hidden-nav hidden">
                 <i class="fa-solid fa-cube"></i> 3D Market Plot
+            </button>
+
+            <button onclick="switchTab('duel')" id="nav-duel" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-[#2d2d30] transition text-slate-300 hidden-nav hidden">
+                 <i class="fa-solid fa-bolt w-5 text-blue-400"></i> Course Duel
+            </button>
+            <button onclick="switchTab('relevance')" id="nav-relevance" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-[#2d2d30] transition text-slate-300 hidden-nav hidden">
+                <i class="fa-solid fa-bullseye w-5 text-emerald-400"></i> Skill Match
+            </button>
+            <button onclick="switchTab('stack')" id="nav-stack" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-[#2d2d30] transition text-slate-300 hidden-nav hidden">
+                <i class="fa-solid fa-cubes w-5 text-fuchsia-400"></i> Curriculum Stack
+                <span id="stackCount" class="ml-auto bg-fuchsia-600 text-white text-[10px] px-2 py-0.5 rounded-full font-bold hidden">0</span>
+            </button>
+            <div class="my-4 border-t border-[#2d2d30] w-full"></div>
+
+            <p class="px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">System</p>
+            <button onclick="switchTab('about')" id="nav-about" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-[#2d2d30] transition text-slate-300">
+                <i class="fa-solid fa-circle-info"></i> About
             </button>
         </nav>
 
-        <div class="p-4 border-t border-[#2d2d30]">
-            <button onclick="exportCSV()" id="exportBtn" class="w-full bg-[#1e1e1f] hover:bg-[#2d2d30] border border-[#3f3f46] px-4 py-3 rounded-lg font-semibold transition flex items-center justify-center gap-2 text-sm text-slate-300 opacity-50 cursor-not-allowed" disabled>
-                <i class="fa-solid fa-download"></i> Export CSV
+        <div class="p-4 border-t border-[#2d2d30] space-y-2">
+            <button onclick="exportCSV()" id="exportBtn" class="w-full bg-[#1e1e1f] hover:bg-[#2d2d30] border border-[#3f3f46] px-4 py-2.5 rounded-lg font-semibold transition flex items-center justify-center gap-2 text-sm text-slate-300 opacity-50 cursor-not-allowed" disabled>
+                <i class="fa-solid fa-file-csv text-green-400"></i> Export CSV
             </button>
+
         </div>
     </aside>
 
     <!-- Main Content Area -->
-    <main class="flex-1 bg-[#0d0d0e] overflow-y-auto relative">
+    <main class="flex-1 bg-[#0d0d0e] overflow-y-auto relative flex flex-col">
 
         <!-- Header / Search Bar -->
-        <div class="sticky top-0 bg-[#0d0d0e]/90 backdrop-blur border-b border-[#2d2d30] p-6 z-10 flex gap-4 items-center justify-between">
+        <div class="sticky top-0 bg-[#0d0d0e] border-b border-[#2d2d30] p-6 z-[50] flex gap-4 items-center justify-between shadow-lg">
             <div class="flex-1 max-w-3xl flex gap-3">
                 <div class="relative w-full">
                     <i class="fa-solid fa-magnifying-glass absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400"></i>
@@ -78,52 +151,73 @@
             </div>
 
             <!-- Sorting Dropdown -->
-            <div class="flex items-center gap-2">
-                <label class="text-sm text-slate-400 font-semibold"><i class="fa-solid fa-filter"></i> Sort By:</label>
-                <select id="sortFilter" onchange="applySort()" class="bg-[#1e1e1f] border border-[#3f3f46] text-white text-sm rounded-lg py-2 px-3 outline-none cursor-pointer focus:border-purple-500">
-                    <option value="recommended">🏆 Recommended First</option>
-                    <option value="rating_desc">⭐ Rating: High to Low</option>
-                    <option value="price_asc">💰 Price: Low to High</option>
-                    <option value="price_desc">💵 Price: High to Low</option>
-                </select>
+            <div class="flex items-center gap-3 bg-[#131314] border border-[#3f3f46] rounded-lg pl-4 pr-1 py-1 hover:border-purple-500 transition-colors focus-within:border-purple-500 focus-within:ring-1 focus-within:ring-purple-500">
+                <label class="text-sm text-slate-400 font-semibold pointer-events-none"><i class="fa-solid fa-filter"></i> Sort By:</label>
+                <div class="relative">
+                    <select id="sortFilter" onchange="applySort()" class="appearance-none bg-transparent text-white text-sm py-2 pl-2 pr-8 outline-none cursor-pointer w-48 font-medium">
+                        <option value="recommended">Recommended First</option>
+                        <option value="rating_desc">Rating: High to Low</option>
+                        <option value="price_asc">Price: Low to High</option>
+                        <option value="price_desc">Price: High to Low</option>
+                    </select>
+                    <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-400">
+                        <i class="fa-solid fa-chevron-down text-xs"></i>
+                    </div>
+                </div>
             </div>
+        </div>
+        <!-- Loading Indicator -->
+        <div id="loading" class="hidden fixed inset-0 z-[100] bg-[#0d0d0e]/90 flex flex-col items-center justify-center">
+            <div class="spinner border-4 border-[#2d2d30] rounded-full h-16 w-16 mb-4"></div>
+            <p class="text-purple-400 animate-pulse font-semibold">Mining web data & crunching AI algorithms(takes 1-2 minutes)...</p>
         </div>
 
         <div class="p-8 pb-24 max-w-7xl mx-auto">
 
-            <!-- Loading Indicator -->
-            <div id="loading" class="hidden flex flex-col items-center justify-center mt-20">
-                <div class="spinner border-4 border-[#2d2d30] rounded-full h-16 w-16 mb-4"></div>
-                <p class="text-purple-400 animate-pulse font-semibold">Mining web data & calculating centroids...</p>
-            </div>
 
-            <!-- TAB: HOME (Web Scraping) -->
-            <div id="tab-home" class="tab-content block">
 
-                <!-- Recommended Learning Path -->
-                <div id="learningPath" class="hidden mb-12 bg-[#131314] p-6 rounded-2xl border border-[#2d2d30] shadow-xl relative overflow-hidden">
-                    <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-yellow-400 via-emerald-400 to-blue-400"></div>
-                    <h2 class="text-2xl font-bold mb-1 text-white ml-2 flex items-center gap-2">🏆 AI Recommended Path</h2>
-                    <p class="text-slate-400 text-sm mb-6 ml-2">Mathematically selected for peak ROI and quality.</p>
-                    <div id="pathGrid" class="grid grid-cols-1 md:grid-cols-3 gap-6 ml-2"></div>
-                </div>
-
-                <h2 id="allCoursesTitle" class="hidden text-xl font-bold mb-4 text-slate-300">All Scraped Courses</h2>
+            <!-- TAB: HOME -->
+            <div id="tab-home" class="tab-content block flex-grow">
+                <h2 id="allCoursesTitle" class="hidden text-xl font-bold mb-6 text-slate-200 border-b border-[#2d2d30] pb-3">Analyzed Courses</h2>
                 <div id="results" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5"></div>
 
-                <!-- Empty State -->
-                <div id="emptyState" class="flex flex-col items-center justify-center mt-32 opacity-50">
-                    <i class="fa-solid fa-database text-6xl mb-4"></i>
-                    <p class="text-lg">Enter a topic above to begin data extraction.</p>
+                <div id="emptyState" class="flex flex-col items-center justify-center mt-20 text-center px-4">
+                    <div class="relative w-24 h-24 mb-6">
+                        <div class="absolute inset-0 bg-purple-600 rounded-full blur-xl opacity-20 animate-pulse"></div>
+                        <div class="relative flex items-center justify-center w-full h-full bg-[#1e1e1f] border border-[#2d2d30] rounded-full shadow-2xl">
+                            <i class="fa-solid fa-graduation-cap text-4xl text-purple-400"></i>
+                        </div>
+                    </div>
+                    <h2 class="text-3xl font-bold text-white mb-3">Course Intelligence Engine</h2>
+                    <p class="text-slate-400 max-w-lg mb-8 leading-relaxed">
+                        Enter a topic above to initiate a deep-web scan. The system will extract, analyze, and mathematically rank the best courses across Coursera, YouTube, and Pluralsight.
+                    </p>
+                    <div class="flex flex-wrap justify-center items-center gap-3">
+                        <span class="text-xs font-semibold text-slate-500 uppercase tracking-widest mr-2"><i class="fa-solid fa-bolt text-yellow-500 mr-1"></i> Quick Start:</span>
+                        <button onclick="document.getElementById('query').value='Python'; search();" class="px-4 py-1.5 bg-[#131314] border border-[#3f3f46] rounded-full text-sm text-slate-300 hover:border-purple-500 hover:text-purple-400 transition cursor-pointer shadow-md">Python</button>
+                        <button onclick="document.getElementById('query').value='Machine Learning'; search();" class="px-4 py-1.5 bg-[#131314] border border-[#3f3f46] rounded-full text-sm text-slate-300 hover:border-purple-500 hover:text-purple-400 transition cursor-pointer shadow-md">Machine Learning</button>
+                        <button onclick="document.getElementById('query').value='React JS'; search();" class="px-4 py-1.5 bg-[#131314] border border-[#3f3f46] rounded-full text-sm text-slate-300 hover:border-purple-500 hover:text-purple-400 transition cursor-pointer shadow-md">React JS</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB: AI ROADMAP -->
+            <div id="tab-roadmap" class="tab-content hidden h-full flex flex-col">
+                <div class="bg-[#131314] p-8 rounded-2xl border border-purple-500/30 shadow-[0_0_20px_rgba(168,85,247,0.15)] w-full">
+                    <h2 class="text-2xl font-bold mb-2 text-purple-400"><i class="fa-solid fa-map-location-dot"></i> Llama-3 Generative Roadmap</h2>
+                    <p class="text-sm text-slate-400 mb-6 border-b border-[#2d2d30] pb-4">A structured, step-by-step learning path generated by AI specifically for your topic.</p>
+                    <div id="roadmapContent" class="markdown-body text-slate-300 text-base">
+                        <div class="flex items-center gap-3 text-slate-400"><div class="spinner-small rounded-full h-5 w-5 border-slate-500"></div> Generating AI Roadmap...</div>
+                    </div>
                 </div>
             </div>
 
             <!-- TAB: NETWORK GRAPH -->
             <div id="tab-network" class="tab-content hidden h-full flex flex-col">
-                <div class="bg-[#131314] p-6 rounded-2xl border border-[#2d2d30] shadow-xl w-full">
-                    <h2 class="text-2xl font-bold mb-2 text-blue-300"><i class="fa-solid fa-project-diagram"></i> Network Authority</h2>
-                    <p class="text-sm text-slate-400 mb-6">Visualizes Degree Centrality to find hub instructors connected to the most top-tier courses.</p>
-                    <img id="netImg" src="" class="w-full rounded-xl bg-white p-2 border border-[#2d2d30]">
+                <div class="bg-[#131314] p-6 rounded-2xl border border-[#2d2d30] shadow-xl w-full h-[600px] flex flex-col">
+                    <h2 class="text-2xl font-bold mb-2 text-blue-300"><i class="fa-solid fa-project-diagram"></i> Interactive Authority Map</h2>
+                    <p class="text-sm text-slate-400 mb-4">Drag nodes to explore the instructor-course ecosystem.</p>
+                    <div id="network-container" class="flex-1 w-full bg-[#0d0d0e] rounded-xl border border-[#2d2d30]"></div>
                 </div>
             </div>
 
@@ -132,7 +226,7 @@
                 <div class="bg-[#131314] p-6 rounded-2xl border border-[#2d2d30] shadow-xl w-full">
                     <h2 class="text-2xl font-bold mb-2 text-orange-400"><i class="fa-solid fa-fire"></i> ROI Density Heatmap</h2>
                     <p class="text-sm text-slate-400 mb-6">Price vs Rating matrix. The bottom-right quadrant indicates high value (Low Price, High Rating).</p>
-                    <img id="heatImg" src="" class="w-full rounded-xl bg-black p-2 border border-[#2d2d30]">
+                    <img id="heatImg" src="" class="w-full rounded-xl bg-[#1e1e1f] p-2 border border-[#2d2d30]">
                 </div>
             </div>
 
@@ -141,32 +235,258 @@
                 <div class="bg-[#131314] p-6 rounded-2xl border border-[#2d2d30] shadow-xl w-full">
                     <h2 class="text-2xl font-bold mb-2 text-rose-400"><i class="fa-solid fa-cube"></i> 3D Market Centroid</h2>
                     <p class="text-sm text-slate-400 mb-6">A multi-dimensional plot of Rating, Enrollment, and Platform. The algorithm calculates the ideal mathematical center (Centroid).</p>
-                    <img id="img3D" src="" class="w-full rounded-xl bg-white p-2 border border-[#2d2d30]">
+                    <img id="img3D" src="" class="w-full rounded-xl bg-[#1e1e1f] p-2 border border-[#2d2d30]">
+                </div>
+            </div>
+
+            <!-- TAB: DUEL -->
+            <div id="tab-duel" class="tab-content hidden h-full flex flex-col">
+                <div class="bg-[#131314] p-8 rounded-2xl border border-blue-500/30 shadow-[0_0_20px_rgba(59,130,246,0.15)] w-full">
+                    <h2 class="text-2xl font-bold mb-2 text-blue-400"><i class="fa-solid fa-bolt"></i> Course Duel Arena</h2>
+                    <p class="text-sm text-slate-400 mb-6 border-b border-[#2d2d30] pb-4">Select two courses from the Web Scraping tab to generate an AI comparison table.</p>
+                    <div id="duelContent" class="markdown-body text-slate-300 text-base overflow-x-auto">
+                        <p class="text-slate-500 italic">No courses selected yet. Go to the Web Scraping tab and click 'Duel' on two courses.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB: RELEVANCE (RADAR CHART) -->
+            <div id="tab-relevance" class="tab-content hidden h-full flex flex-col">
+                <div class="bg-[#131314] p-8 rounded-2xl border border-emerald-500/30 shadow-[0_0_20px_rgba(16,185,129,0.15)] w-full h-full flex flex-col">
+                    <div class="flex items-center gap-3 mb-2">
+                        <h2 class="text-2xl font-bold text-emerald-400">
+                            <i class="fa-solid fa-bullseye"></i> Skill-Gap Radar
+                        </h2>
+
+                        <div class="relative group flex items-center">
+                            <i class="fa-regular fa-circle-question text-slate-500 hover:text-emerald-400 cursor-help text-lg transition duration-200"></i>
+
+                            <div class="absolute left-8 top-1/2 -translate-y-1/2 w-80 bg-[#1e1e1f] border border-[#3f3f46] rounded-xl p-4 shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-50 scale-95 group-hover:scale-100">
+                                <h4 class="font-bold text-emerald-400 mb-2 border-b border-[#2d2d30] pb-2 text-xs uppercase tracking-wider">Radar Metrics Explained</h4>
+                                <ul class="space-y-2 text-[11px] text-slate-300">
+                                    <li><strong class="text-white">Theory:</strong> Focuses on foundational concepts, math, and underlying science.</li>
+                                    <li><strong class="text-white">Hands-On:</strong> The amount of active coding, clicking, or lab work required.</li>
+                                    <li><strong class="text-white">Interview Prep:</strong> Prepares you for algorithmic challenges and job questions.</li>
+                                    <li><strong class="text-white">Tool Mastery:</strong> Teaches specific, industry-standard software (e.g., Docker, React).</li>
+                                    <li><strong class="text-white">Portfolio Building:</strong> Results in a tangible, completed project for your resume.</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    <p class="text-sm text-slate-400 mb-6 border-b border-[#2d2d30] pb-4">Multi-axis AI evaluation mapping course syllabus against your target career goal.</p>
+                    <div class="flex flex-col md:flex-row items-center gap-8 flex-1 overflow-hidden">
+                        <div class="md:w-1/2 w-full space-y-4">
+                            <div id="relevanceLoading" class="hidden flex items-center gap-3 text-emerald-400 font-bold mb-4">
+                                <div class="spinner border-4 border-[#2d2d30] border-t-emerald-500 rounded-full h-8 w-8"></div>
+                                Generating AI Radar Analysis...
+                            </div>
+
+                            <div id="relevanceContent">
+                                <p class="text-slate-500 italic">No course analyzed yet. Go to the Web Scraping tab and click 'Match' on a course.</p>
+                            </div>
+                        </div>
+
+                        <!-- Radar Chart -->
+                        <div class="md:w-1/2 w-full flex justify-center items-center bg-[#1a1a1c] p-6 rounded-xl border border-[#2d2d30] h-full max-h-[400px]">
+                            <canvas id="radarChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- TAB: STACK AUDITOR -->
+            <div id="tab-stack" class="tab-content hidden h-full flex flex-col">
+                <div class="bg-[#131314] p-8 rounded-2xl border border-fuchsia-500/30 shadow-[0_0_20px_rgba(217,70,239,0.15)] w-full h-full flex flex-col">
+                    <h2 class="text-2xl font-bold mb-2 text-fuchsia-400"><i class="fa-solid fa-cubes"></i> Curriculum Architect</h2>
+                    <p class="text-sm text-slate-400 mb-6 border-b border-[#2d2d30] pb-4">Build a custom learning stack and have AI audit it for redundancies and job-role gaps.</p>
+
+                    <div class="flex flex-col md:flex-row gap-6 flex-1 overflow-hidden">
+                        <!-- Selected Courses -->
+                        <div class="md:w-1/3 bg-[#1a1a1c] p-5 rounded-xl border border-[#2d2d30] flex flex-col h-full">
+                            <h3 class="text-sm font-bold text-slate-300 mb-3 uppercase tracking-wider border-b border-[#3f3f46] pb-2">Your Cart</h3>
+
+                            <div id="stackList" class="flex-1 overflow-y-auto space-y-2 mb-4 pr-2">
+                                <p class="text-slate-500 text-xs italic">No courses added yet. Go to Web Scraping and click 'Stack'.</p>
+                            </div>
+
+                            <div class="mt-auto border-t border-[#2d2d30] pt-4">
+                                <label class="text-xs font-bold text-slate-400 mb-2 block">Target Job Role:</label>
+                                <input type="text" id="targetRole" placeholder="e.g., Senior Cloud Architect" class="w-full bg-[#131314] border border-[#3f3f46] rounded-lg px-4 py-2 text-sm text-white focus:border-fuchsia-500 outline-none mb-3">
+                                <button onclick="runAudit()" class="w-full bg-fuchsia-600 hover:bg-fuchsia-500 text-white font-bold py-2.5 rounded-lg transition text-sm shadow-lg shadow-fuchsia-900/20 flex items-center justify-center gap-2">
+                                    <i class="fa-solid fa-microchip"></i> Audit Stack
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- AI Audit Report -->
+                        <div class="md:w-2/3 bg-[#1e1e1f] p-6 rounded-xl border border-[#2d2d30] overflow-y-auto h-full">
+                            <div id="auditContent" class="markdown-body text-slate-300 text-sm">
+                                <div class="h-full flex flex-col items-center justify-center text-slate-500 pt-16">
+                                    <i class="fa-solid fa-robot text-5xl mb-4 opacity-30"></i>
+                                    <p class="text-center max-w-sm">Add courses to your cart and click 'Audit Stack' to generate an enterprise readiness report.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB: ABOUT -->
+            <div id="tab-about" class="tab-content hidden pt-10">
+                <div class="max-w-5xl mx-auto space-y-8 pb-12">
+
+                    <div class="bg-[#131314] p-10 rounded-2xl border border-purple-500/20 shadow-[0_0_30px_rgba(168,85,247,0.1)] text-center relative overflow-hidden">
+                        <div class="absolute top-0 left-1/2 transform -translate-x-1/2 w-64 h-64 bg-purple-600 rounded-full blur-[100px] opacity-20 pointer-events-none"></div>
+                        <i class="fa-solid fa-layer-group text-5xl text-purple-400 mb-6 relative z-10"></i>
+                        <h1 class="text-4xl font-black text-white mb-4 relative z-10 tracking-tight">Enterprise Course Analytics Engine</h1>
+                        <p class="text-slate-400 text-lg max-w-2xl mx-auto relative z-10 leading-relaxed">
+                            A highly advanced, multi-platform intelligence tool designed to mathematically locate, evaluate, and visualize the absolute best educational content on the internet.
+                        </p>
+                    </div>
+
+                    <div class="bg-[#1e1e1f] p-8 rounded-2xl border border-[#2d2d30]">
+                        <h2 class="text-lg font-bold text-white mb-6 uppercase tracking-widest text-center text-slate-300">The Intelligence Pipeline</h2>
+                        <div class="flex flex-col md:flex-row justify-between items-center gap-4 text-center">
+                            <div class="flex-1">
+                                <div class="w-16 h-16 mx-auto bg-[#131314] border border-[#3f3f46] rounded-full flex items-center justify-center mb-3 shadow-lg">
+                                    <i class="fa-solid fa-spider text-2xl text-slate-300"></i>
+                                </div>
+                                <h3 class="font-bold text-white mb-1">1. Deep Extraction</h3>
+                                <p class="text-xs text-slate-400">Headless scraping of hidden JSON-LD schema.</p>
+                            </div>
+                            <i class="fa-solid fa-arrow-right text-slate-600 hidden md:block"></i>
+                            <i class="fa-solid fa-arrow-down text-slate-600 md:hidden"></i>
+
+                            <div class="flex-1">
+                                <div class="w-16 h-16 mx-auto bg-[#131314] border border-[#3f3f46] rounded-full flex items-center justify-center mb-3 shadow-lg">
+                                    <i class="fa-solid fa-calculator text-2xl text-yellow-400"></i>
+                                </div>
+                                <h3 class="font-bold text-white mb-1">2. Mathematical Ranking</h3>
+                                <p class="text-xs text-slate-400">Calculating ROI and Euclidean Centroids.</p>
+                            </div>
+                            <i class="fa-solid fa-arrow-right text-slate-600 hidden md:block"></i>
+                            <i class="fa-solid fa-arrow-down text-slate-600 md:hidden"></i>
+
+                            <div class="flex-1">
+                                <div class="w-16 h-16 mx-auto bg-[#131314] border border-[#3f3f46] rounded-full flex items-center justify-center mb-3 shadow-lg">
+                                    <i class="fa-solid fa-brain text-2xl text-purple-400"></i>
+                                </div>
+                                <h3 class="font-bold text-white mb-1">3. AI Synthesis</h3>
+                                <p class="text-xs text-slate-400">LLMs generate roadmaps and course duels.</p>
+                            </div>
+                            <i class="fa-solid fa-arrow-right text-slate-600 hidden md:block"></i>
+                            <i class="fa-solid fa-arrow-down text-slate-600 md:hidden"></i>
+
+                            <div class="flex-1">
+                                <div class="w-16 h-16 mx-auto bg-[#131314] border border-[#3f3f46] rounded-full flex items-center justify-center mb-3 shadow-lg">
+                                 <i class="fa-solid fa-chart-line text-2xl text-blue-400"></i>
+                                </div>
+                                <h3 class="font-bold text-white mb-1">4. Visualization</h3>
+                                <p class="text-xs text-slate-400">Rendering Data via NetworkX & Matplotlib.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Core Pillars Grid -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="bg-[#131314] p-8 rounded-xl border border-[#2d2d30] hover:border-emerald-500/50 transition duration-300 group">
+                            <h3 class="text-xl font-bold text-emerald-400 mb-3 flex items-center gap-3">
+                                <i class="fa-solid fa-code text-2xl group-hover:scale-110 transition"></i> Semantic Data Mining
+                            </h3>
+                            <p class="text-slate-400 text-sm leading-relaxed">
+                                Bypasses traditional UI limitations by using <strong class="text-slate-200">Selenium Webdriver</strong> and <strong class="text-slate-200">XML Sitemaps</strong> to extract live `application/ld+json` metadata from major platforms simultaneously.
+                            </p>
+                        </div>
+                        <div class="bg-[#131314] p-8 rounded-xl border border-[#2d2d30] hover:border-purple-500/50 transition duration-300 group">
+                            <h3 class="text-xl font-bold text-purple-400 mb-3 flex items-center gap-3">
+                                <i class="fa-solid fa-microchip text-2xl group-hover:scale-110 transition"></i> Generative AI Integration
+                            </h3>
+                            <p class="text-slate-400 text-sm leading-relaxed">
+                                Directly integrates with <strong class="text-slate-200">Meta Llama-3</strong> to create dynamic learning roadmaps, evaluate skill-gap relevance, and conduct side-by-side analytical "Course Duels" in real-time.
+                            </p>
+                        </div>
+                        <div class="bg-[#131314] p-8 rounded-xl border border-[#2d2d30] hover:border-yellow-400/50 transition duration-300 group">
+                            <h3 class="text-xl font-bold text-yellow-400 mb-3 flex items-center gap-3">
+                                <i class="fa-solid fa-bullseye text-2xl group-hover:scale-110 transition"></i> The 3D Centroid Pick
+                            </h3>
+                            <p class="text-slate-400 text-sm leading-relaxed">
+                                Recommendations are mathematical, not random. The system calculates Euclidean distances to an "ideal" coordinate (Max Rating + Max Enrollment) in a 3-dimensional array to find the <strong class="text-slate-200">Algorithm Pick</strong>.
+                            </p>
+                        </div>
+                        <div class="bg-[#131314] p-8 rounded-xl border border-[#2d2d30] hover:border-blue-400/50 transition duration-300 group">
+                            <h3 class="text-xl font-bold text-blue-400 mb-3 flex items-center gap-3">
+                                <i class="fa-solid fa-project-diagram text-2xl group-hover:scale-110 transition"></i> Degree Centrality
+                            </h3>
+                            <p class="text-slate-400 text-sm leading-relaxed">
+                                Utilizing <strong class="text-slate-200">NetworkX</strong>, the engine builds a graph of Instructors and Courses, analyzing network edges to identify the most authoritative "Hub" creators in any given tech ecosystem.
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Tech Stack -->
+                    <div class="bg-[#1e1e1f] p-8 rounded-2xl border border-[#2d2d30] text-center">
+                        <h2 class="text-lg font-bold text-white mb-6 uppercase tracking-widest text-slate-300">Powered By</h2>
+                        <div class="flex flex-wrap justify-center gap-3">
+                            <span class="px-5 py-2.5 bg-[#131314] border border-[#3f3f46] rounded-xl text-sm font-bold text-slate-300 shadow-sm"><i class="fa-solid fa-bolt text-teal-400 mr-2"></i> FastAPI</span>
+                            <span class="px-5 py-2.5 bg-[#131314] border border-[#3f3f46] rounded-xl text-sm font-bold text-slate-300 shadow-sm"><i class="fa-brands fa-python text-blue-400 mr-2"></i> Python 3</span>
+                            <span class="px-5 py-2.5 bg-[#131314] border border-[#3f3f46] rounded-xl text-sm font-bold text-slate-300 shadow-sm"><i class="fa-solid fa-table text-green-400 mr-2"></i> Pandas & NumPy</span>
+                            <span class="px-5 py-2.5 bg-[#131314] border border-[#3f3f46] rounded-xl text-sm font-bold text-slate-300 shadow-sm"><i class="fa-solid fa-robot text-orange-400 mr-2"></i> Selenium</span>
+                            <span class="px-5 py-2.5 bg-[#131314] border border-[#3f3f46] rounded-xl text-sm font-bold text-slate-300 shadow-sm"><i class="fa-solid fa-chart-line text-rose-400 mr-2"></i> Matplotlib</span>
+                            <span class="px-5 py-2.5 bg-[#131314] border border-[#3f3f46] rounded-xl text-sm font-bold text-slate-300 shadow-sm"><i class="fa-solid fa-wind text-cyan-400 mr-2"></i> Tailwind CSS</span>
+                            <span class="px-5 py-2.5 bg-[#131314] border border-[#3f3f46] rounded-xl text-sm font-bold text-slate-300 shadow-sm"><i class="fa-solid fa-brain text-purple-400 mr-2"></i> Llama-3 AI</span>
+                        </div>
+                    </div>
+
                 </div>
             </div>
 
         </div>
     </main>
+    <!-- AI TUTOR SIDEBAR -->
+    <div id="tutorSidebar" class="fixed top-0 right-0 h-full w-[400px] bg-[#131314] border-l border-[#2d2d30] shadow-2xl transform translate-x-full transition-transform duration-300 z-[100] flex flex-col">
+        <div class="p-6 border-b border-[#2d2d30] flex justify-between items-center bg-[#1a1a1c]">
+            <div>
+                <h3 class="text-xl font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-robot text-purple-500"></i> AI Course Tutor
+                </h3>
+                <p id="tutorCourseTitle" class="text-xs text-slate-400 mt-1 truncate w-[300px]"></p>
+            </div>
+            <button onclick="closeTutor()" class="text-slate-400 hover:text-white text-3xl p-2 transition-colors cursor-pointer">&times;</button>
+        </div>
 
+        <div id="tutorMessages" class="flex-1 overflow-y-auto p-6 space-y-4 bg-[#0d0d0e]">
+            <div class="bg-[#1e1e1f] p-4 rounded-2xl rounded-tl-none border border-[#2d2d30] text-sm text-slate-300">
+                Hello! I am your specialized tutor for this course. What would you like to know about the syllabus or requirements?
+            </div>
+        </div>
+
+        <div class="p-6 bg-[#1a1a1c] border-t border-[#2d2d30]">
+            <div class="flex gap-2">
+                <input type="text" id="sidebarTutorInput" placeholder="Type your question..."
+                       class="flex-1 bg-[#0d0d0e] border border-[#3f3f46] rounded-xl px-4 py-3 text-white outline-none focus:border-purple-500 text-sm">
+                <button id="sidebarSendBtn" class="bg-purple-600 hover:bg-purple-500 text-white px-5 py-3 rounded-xl font-bold transition shadow-lg shadow-purple-900/20">
+                    <i class="fa-solid fa-paper-plane"></i>
+                </button>
+            </div>
+        </div>
+    </div>
     <script>
         let currentData = [];
 
-        // Tab Switching Logic
         function switchTab(tabId) {
-            // Hide all tabs
             document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
-            // Remove active class from all navs
             document.querySelectorAll('nav button').forEach(el => {
                 el.classList.remove('nav-active');
                 el.classList.add('text-slate-300');
             });
-
-            // Show selected tab
             document.getElementById('tab-' + tabId).classList.remove('hidden');
-            // Highlight selected nav
             const activeNav = document.getElementById('nav-' + tabId);
-            activeNav.classList.add('nav-active');
-            activeNav.classList.remove('text-slate-300');
+            if(activeNav) {
+                activeNav.classList.add('nav-active');
+                activeNav.classList.remove('text-slate-300');
+            }
+            if(tabId === 'network' && network) {
+                     setTimeout(() => network.fit(), 100);
+            }
         }
 
         async function search() {
@@ -176,12 +496,20 @@
             document.getElementById('loading').classList.remove('hidden');
             document.getElementById('emptyState').classList.add('hidden');
             document.getElementById('results').innerHTML = '';
-            document.getElementById('pathGrid').innerHTML = '';
-            document.getElementById('learningPath').classList.add('hidden');
             document.getElementById('allCoursesTitle').classList.add('hidden');
+            document.getElementById('roadmapContent').innerHTML = '<div class="flex items-center gap-3 text-slate-400"><div class="spinner-small rounded-full h-5 w-5 border-slate-500"></div> Generating AI Roadmap...</div>';
 
-            // Switch back to home tab for results
             switchTab('home');
+
+            fetch(`/api/roadmap?query=${encodeURIComponent(q)}`)
+                .then(r => r.json())
+                .then(data => {
+                    if(data.status === 'success') {
+                        document.getElementById('roadmapContent').innerHTML = marked.parse(data.roadmap);
+                    } else {
+                        document.getElementById('roadmapContent').innerHTML = "<span class='text-red-400'>Error generating roadmap.</span>";
+                    }
+                });
 
             try {
                 const res = await fetch(`/api/search?query=${encodeURIComponent(q)}`);
@@ -189,27 +517,24 @@
 
                 if(d.status === 'success') {
                     currentData = d.courses;
-
-                    // Unlock the side tabs & export button
                     document.querySelectorAll('.hidden-nav').forEach(el => el.classList.remove('hidden', 'opacity-50', 'pointer-events-none'));
                     const exportBtn = document.getElementById('exportBtn');
                     exportBtn.disabled = false;
                     exportBtn.classList.remove('opacity-50', 'cursor-not-allowed');
                     exportBtn.classList.add('hover:text-white', 'text-emerald-400');
 
-                    // Set Images for the other tabs
-                    document.getElementById('netImg').src = 'data:image/png;base64,' + d.network_image;
+                    if (d.network_data && d.network_data.nodes.length > 0) {
+                       renderNetwork(d.network_data);
+                    }
                     document.getElementById('heatImg').src = 'data:image/png;base64,' + d.heatmap_image;
                     if(d.img_3d) document.getElementById('img3D').src = 'data:image/png;base64,' + d.img_3d;
 
-                    // Build the Learning Path Top Box First
-                    buildLearningPath();
-
-                    // Render the main grid based on the default Sort filter
+                    document.getElementById('sortFilter').value = 'recommended';
                     applySort();
-
                     document.getElementById('allCoursesTitle').classList.remove('hidden');
+
                 }
+
             } catch(e) {
                 alert('An error occurred during deep scanning.');
             } finally {
@@ -217,10 +542,9 @@
             }
         }
 
-        // Dedicated function to render HTML cards
         function renderCards(dataArray, targetContainer) {
             let html = '';
-            dataArray.forEach(c => {
+            dataArray.forEach((c, idx) => {
                 const icon = c.platform === 'YouTube' ? '<i class="fa-solid fa-eye"></i>' : '<i class="fa-solid fa-star"></i>';
                 const price = c.price === "0" || c.price.toLowerCase() === "free" ? "FREE" : "$" + c.price;
 
@@ -228,28 +552,60 @@
                 let badge = "";
 
                 if (c.is_centroid) {
-                    extraClass = "glow-gold relative overflow-hidden";
-                    badge = `<div class="absolute top-0 right-0 bg-yellow-400 text-black px-3 py-1 text-[10px] font-black rounded-bl-lg"><i class="fa-solid fa-trophy"></i> ALGORITHM PICK</div>`;
+                    extraClass = "glow-gold relative";
+                    badge = `<div class="absolute top-0 right-0 bg-yellow-400 text-black px-3 py-1 text-[10px] font-black rounded-bl-lg rounded-tr-lg z-10"><i class="fa-solid fa-trophy"></i> ALGORITHM PICK</div>`;
                 } else if (c.is_best_value) {
-                    extraClass = "glow-green relative overflow-hidden";
-                    badge = `<div class="absolute top-0 right-0 bg-emerald-400 text-black px-3 py-1 text-[10px] font-black rounded-bl-lg"><i class="fa-solid fa-money-bill-wave"></i> BEST ROI</div>`;
+                    extraClass = "glow-green relative";
+                    badge = `<div class="absolute top-0 right-0 bg-emerald-400 text-black px-3 py-1 text-[10px] font-black rounded-bl-lg rounded-tr-lg z-10"><i class="fa-solid fa-money-bill-wave"></i> BEST ROI</div>`;
                 } else if (c.is_top_instructor) {
-                    extraClass = "glow-blue relative overflow-hidden";
-                    badge = `<div class="absolute top-0 right-0 bg-blue-400 text-black px-3 py-1 text-[10px] font-black rounded-bl-lg"><i class="fa-solid fa-crown"></i> TOP INSTRUCTOR</div>`;
+                    extraClass = "glow-blue relative";
+                    badge = `<div class="absolute top-0 right-0 bg-blue-400 text-black px-3 py-1 text-[10px] font-black rounded-bl-lg rounded-tr-lg z-10"><i class="fa-solid fa-crown"></i> TOP INSTRUCTOR</div>`;
                 }
 
+                const safeTitle = c.title.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+                const safePlat = c.platform.replace(/'/g, "\\'");
+                const cardId = `insight-box-${targetContainer.id}-${idx}`;
+
                 html += `
-                    <div class="bg-[#1e1e1f] p-5 rounded-xl border transition-all flex flex-col hover:bg-[#2d2d30] ${extraClass}">
+                    <div class="course-card bg-[#1e1e1f] p-5 rounded-xl border flex flex-col ${extraClass}">
                         ${badge}
                         <div class="flex justify-between items-start mb-3 mt-1">
                             <span class="${c.platform} border px-2 py-1 rounded text-[10px] font-black uppercase tracking-wider">${c.platform}</span>
                             <span class="text-emerald-400 font-black text-sm">${price}</span>
                         </div>
                         <h3 class="text-base font-bold mb-2 text-white leading-tight" title="${c.title}">${c.title.length > 50 ? c.title.substring(0, 47) + '...' : c.title}</h3>
-                        <p class="text-slate-400 text-xs mb-5 flex-grow"><i class="fa-solid fa-chalkboard-user mr-1"></i> <span class="text-slate-300">${c.instructor}</span></p>
-                        <div class="flex justify-between items-center pt-3 border-t border-[#3f3f46]">
+                        <p class="text-slate-400 text-xs mb-3 flex-grow"><i class="fa-solid fa-chalkboard-user mr-1"></i> <span class="text-slate-300">${c.instructor}</span></p>
+
+                        <div class="mb-3 bg-[#131314] rounded-lg border border-[#2d2d30] overflow-hidden">
+                            <button onclick="fetchInsight(this, '${cardId}', '${safeTitle}', '${safePlat}', ${idx})" class="w-full text-left px-3 py-2 text-[10px] text-purple-400 hover:bg-purple-900/20 font-semibold transition flex justify-between items-center">
+                                <span><i class="fa-solid fa-wand-magic-sparkles"></i> AI Summary</span>
+                                <i class="fa-solid fa-chevron-down"></i>
+                            </button>
+                            <div id="${cardId}" class="hidden px-3 pb-3 text-[11px] text-slate-300 border-t border-[#2d2d30] bg-[#1a1a1c]">
+                                <div id="insight-content-${idx}" class="mt-2 leading-relaxed"></div>
+                                <button onclick="openTutor('${safeTitle}')" class="w-full mt-3 bg-purple-900/30 hover:bg-purple-900/50 border border-purple-500/30 text-purple-300 py-2 rounded-lg font-bold transition flex items-center justify-center gap-2 text-[10px]">
+                                    <i class="fa-solid fa-comment-dots"></i> Open Deep AI Tutor
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-3 gap-2 mb-4">
+                            <button id="duel-btn-${idx}" onclick="compareFlow(${idx}, '${safeTitle}', '${c.rating}', '${price}', '${c.link}')" class="bg-[#2d2d30] hover:bg-blue-600/40 text-white text-[10px] py-1.5 rounded transition border border-[#3f3f46] flex flex-col items-center justify-center gap-1">
+                                 <i class="fa-solid fa-swords"></i> Duel
+                            </button>
+                            <button onclick="checkRelevance('${safeTitle}', '${document.getElementById('query').value}')" class="bg-[#2d2d30] hover:bg-emerald-600/40 text-white text-[10px] py-1.5 rounded transition border border-[#3f3f46] flex flex-col items-center justify-center gap-1">
+                                <i class="fa-solid fa-bullseye"></i> Match
+                            </button>
+                            <button id="stack-btn-${idx}" onclick="toggleStack('${safeTitle}', '${safePlat}', ${idx})" class="bg-[#2d2d30] hover:bg-fuchsia-600/40 text-white text-[10px] py-1.5 rounded transition border border-[#3f3f46] flex flex-col items-center justify-center gap-1">
+                                <i class="fa-solid fa-layer-group"></i> Stack
+                            </button>
+                        </div>
+
+                        <div class="flex justify-between items-center pt-3 border-t border-[#3f3f46] mt-auto">
                             <span class="text-amber-400 font-bold text-sm">${icon} ${c.rating}</span>
-                            <a href="${c.link}" target="_blank" class="px-4 py-1.5 bg-[#2d2d30] hover:bg-purple-600 rounded text-xs font-bold text-white transition"><i class="fa-solid fa-arrow-up-right-from-square"></i></a>
+                            <a href="${c.link}" target="_blank" class="px-4 py-1.5 bg-[#2d2d30] hover:bg-purple-600 rounded text-xs font-bold text-white transition">
+                                <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                            </a>
                         </div>
                     </div>
                 `;
@@ -257,76 +613,387 @@
             targetContainer.innerHTML = html;
         }
 
-        function buildLearningPath() {
-            const pathItems = currentData.filter(c => c.is_centroid || c.is_best_value || c.is_top_instructor);
-            if (pathItems.length > 0) {
-                renderCards(pathItems, document.getElementById('pathGrid'));
-                document.getElementById('learningPath').classList.remove('hidden');
+        async function fetchInsight(btnEl, boxId, title, platform, idx) {
+            const box = document.getElementById(boxId);
+            const contentArea = document.getElementById(`insight-content-${idx}`); 
+            const icon = btnEl.querySelector('.fa-chevron-down');
+
+            if(!box.classList.contains('hidden') && contentArea.innerHTML !== "") {
+                box.classList.add('hidden');
+                icon.style.transform = 'rotate(0deg)';
+                return;
+            }
+
+            box.classList.remove('hidden');
+            icon.style.transform = 'rotate(180deg)';
+
+            if (contentArea.innerHTML === "") {
+                contentArea.innerHTML = `<div class="flex items-center gap-2 mt-2 text-purple-400"><div class="spinner-small rounded-full h-3 w-3 border-purple-500"></div> Scanning syllabus...</div>`;
+                try {
+                    const res = await fetch(`/api/insight?title=${encodeURIComponent(title)}&platform=${encodeURIComponent(platform)}`);
+                    const data = await res.json();
+                    if(data.status === 'success') {
+                        contentArea.innerHTML = marked.parse(data.insight);
+                    } else {
+                        contentArea.innerHTML = `<div class="mt-2 text-red-400">Failed to generate insight.</div>`;
+                    }
+                } catch(e) { contentArea.innerHTML = `<div class="mt-2 text-red-400">Network Error.</div>`; }
             }
         }
 
-        // Sorting Logic triggered by Dropdown
         function applySort() {
             if(!currentData.length) return;
-
             const sortVal = document.getElementById('sortFilter').value;
-            let sortedArray = [...currentData]; // Clone array
+            let sortedArray = [...currentData];
 
-            if (sortVal === 'price_asc') {
-                sortedArray.sort((a, b) => (a.math_price || 0) - (b.math_price || 0));
-            } else if (sortVal === 'price_desc') {
-                sortedArray.sort((a, b) => (b.math_price || 0) - (a.math_price || 0));
-            } else if (sortVal === 'rating_desc') {
-                sortedArray.sort((a, b) => (b.math_rating || 0) - (a.math_rating || 0));
-            } else if (sortVal === 'recommended') {
+            if (sortVal === 'price_asc') sortedArray.sort((a, b) => (a.math_price || 0) - (b.math_price || 0));
+            else if (sortVal === 'price_desc') sortedArray.sort((a, b) => (b.math_price || 0) - (a.math_price || 0));
+            else if (sortVal === 'rating_desc') sortedArray.sort((a, b) => (b.math_rating || 0) - (a.math_rating || 0));
+            else if (sortVal === 'recommended') {
                 sortedArray.sort((a, b) => {
                     const scoreA = (a.is_centroid ? 3 : 0) + (a.is_best_value ? 2 : 0) + (a.is_top_instructor ? 1 : 0);
                     const scoreB = (b.is_centroid ? 3 : 0) + (b.is_best_value ? 2 : 0) + (b.is_top_instructor ? 1 : 0);
-                    return scoreB - scoreA;
+                    if (scoreA !== scoreB) return scoreB - scoreA;
+                    return (b.math_rating || 0) - (a.math_rating || 0);
                 });
             }
-
-            // Re-render the main grid
             renderCards(sortedArray, document.getElementById('results'));
+        }
+
+        let compareBuffer = [];
+        let compareTitles = [];
+
+
+
+        function compareFlow(idx, title, rating, price, link) {
+            const btn = document.getElementById(`duel-btn-${idx}`);
+
+            if (compareBuffer.some(c => c.idx === idx)) return;
+
+            compareBuffer.push({ idx, title, rating, price, link });
+
+            if (compareBuffer.length === 1) {
+                btn.innerHTML = `<i class="fa-solid fa-lock mr-1"></i> Locked (Pick 2nd)`;
+                btn.classList.replace('bg-[#2d2d30]', 'bg-blue-600');
+                btn.classList.remove('hover:bg-blue-600/40');
+            }
+            else if (compareBuffer.length === 2) {
+                const btn1 = document.getElementById(`duel-btn-${compareBuffer[0].idx}`);
+                if(btn1) {
+                    btn1.innerHTML = `<i class="fa-solid fa-swords mr-1"></i> Duel`;
+                    btn1.classList.replace('bg-blue-600', 'bg-[#2d2d30]');
+                    btn1.classList.add('hover:bg-blue-600/40');
+                }
+
+                switchTab('duel');
+                document.getElementById('duelContent').innerHTML = `<div class="flex items-center gap-3 text-blue-400"><div class="spinner-small rounded-full h-5 w-5 border-blue-500"></div> AI is forging the Course Duel...</div>`;
+
+                const q = new URLSearchParams({
+                    t1: compareBuffer[0].title, r1: compareBuffer[0].rating, p1: compareBuffer[0].price, l1: compareBuffer[0].link,
+                    t2: compareBuffer[1].title, r2: compareBuffer[1].rating, p2: compareBuffer[1].price, l2: compareBuffer[1].link
+                }).toString();
+
+
+
+                fetch(`/api/compare?${q}`)
+                    .then(r => r.json())
+                    .then(d => {
+                        if (d.status === 'success') {
+                            
+                            const cleanMarkdown = d.comparison.replace(/\|/g, " | ");
+                            document.getElementById('duelContent').innerHTML = marked.parse(cleanMarkdown);
+                        } else {
+                            document.getElementById('duelContent').innerHTML = `<span class='text-red-400'>API Error: ${d.message}</span>`;
+                        }
+                        compareBuffer = [];
+                    }).catch(e => {
+                        document.getElementById('duelContent').innerHTML = "<span class='text-red-400'>Network Error: Could not connect to backend.</span>";
+                        compareBuffer = [];
+                    });
+            }
+        }
+
+        // ---RADAR CHART LOGIC ---
+        let radarChartInstance = null;
+
+        async function checkRelevance(title, query) {
+            switchTab('relevance');
+            const relContainer = document.getElementById('relevanceContent');
+            const loadingBlock = document.getElementById('relevanceLoading');
+
+            // Show Loading
+            loadingBlock.classList.remove('hidden');
+            relContainer.innerHTML = '';
+
+            // Clear old chart if it exists
+            if(radarChartInstance) {
+                radarChartInstance.destroy();
+            }
+
+            try {
+                const res = await fetch(`/api/relevance?query=${encodeURIComponent(query)}&title=${encodeURIComponent(title)}`);
+                const d = await res.json();
+                loadingBlock.classList.add('hidden');
+
+                if(d.error) {
+                    relContainer.innerHTML = `<span class='text-red-400'>Analysis failed: ${d.error}</span>`;
+                    return;
+                }
+
+                // Render Text Summary
+                relContainer.innerHTML = `
+                    <div class="bg-[#1e1e1f] p-5 rounded-xl border border-[#2d2d30] shadow-lg">
+                        <p class="text-slate-400 text-xs uppercase tracking-wider mb-1">Target Goal: <strong class="text-white">${query}</strong></p>
+                        <h3 class="text-emerald-400 font-bold text-lg mb-4 leading-tight">${title}</h3>
+                        <p class="text-slate-300 text-sm leading-relaxed border-l-4 border-emerald-500 pl-3 italic">"${d.summary}"</p>
+                    </div>
+                `;
+
+                // Render Chart.js Radar
+                const ctx = document.getElementById('radarChart').getContext('2d');
+
+                Chart.defaults.color = '#94a3b8';
+                Chart.defaults.font.family = "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif";
+
+                radarChartInstance = new Chart(ctx, {
+                    type: 'radar',
+                    data: {
+                        labels: ['Theory', 'Hands-On', 'Interview Prep', 'Tool Mastery', 'Portfolio Building'],
+                        datasets: [{
+                            label: 'AI Course Evaluation',
+                            data: [d.Theory, d.Hands_On, d.Interview_Prep, d.Tool_Mastery, d.Portfolio_Building],
+                            backgroundColor: 'rgba(16, 185, 129, 0.2)',
+                            borderColor: '#10b981',
+                            pointBackgroundColor: '#10b981',
+                            pointBorderColor: '#fff',
+                            pointHoverBackgroundColor: '#fff',
+                            pointHoverBorderColor: '#10b981',
+                            borderWidth: 2,
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            r: {
+                                angleLines: { color: 'rgba(255, 255, 255, 0.1)' },
+                                grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                                pointLabels: { color: '#e2e8f0', font: { size: 12, weight: 'bold' } },
+                                ticks: { display: false, min: 0, max: 10 }
+                            }
+                        },
+                        plugins: {
+                            legend: { display: false }
+                        }
+                    }
+                });
+
+            } catch(e) {
+                loadingBlock.classList.add('hidden');
+                relContainer.innerHTML = `<span class='text-red-400'>Network Error connecting to AI Radar.</span>`;
+            }
         }
 
         function exportCSV() {
             if(!currentData.length) return;
             const headers = ['Title', 'Platform', 'Instructor', 'Rating', 'Price', 'Link', 'Algorithm_Pick', 'Best_ROI', 'Top_Instructor'];
             const csvRows = [headers.join(',')];
-
             currentData.forEach(row => {
-                const values = [
-                    `"${row.title.replace(/"/g, '""')}"`,
-                    `"${row.platform}"`,
-                    `"${row.instructor.replace(/"/g, '""')}"`,
-                    `"${row.rating}"`,
-                    `"${row.price}"`,
-                    `"${row.link}"`,
-                    row.is_centroid ? 'Yes' : 'No',
-                    row.is_best_value ? 'Yes' : 'No',
-                    row.is_top_instructor ? 'Yes' : 'No'
-                ];
-                csvRows.push(values.join(','));
+                csvRows.push([
+                    `"${row.title.replace(/"/g, '""')}"`, `"${row.platform}"`, `"${row.instructor.replace(/"/g, '""')}"`,
+                    `"${row.rating}"`, `"${row.price}"`, `"${row.link}"`,
+                    row.is_centroid ? 'Yes' : 'No', row.is_best_value ? 'Yes' : 'No', row.is_top_instructor ? 'Yes' : 'No'
+                ].join(','));
             });
-
             const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
-            a.setAttribute('hidden', '');
-            a.setAttribute('href', url);
-            a.setAttribute('download', 'Course_Studio_Export.csv');
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
+            a.setAttribute('hidden', ''); a.setAttribute('href', url); a.setAttribute('download', 'Course_Studio_Export.csv');
+            document.body.appendChild(a); a.click(); document.body.removeChild(a);
         }
 
         document.getElementById("query").addEventListener("keydown", function(e) {
-           if (e.key === "Enter") {
-             e.preventDefault();
-             search();
-           }
+           if (e.key === "Enter") { e.preventDefault(); search(); }
         });
+        // --- STACK AUDITOR LOGIC ---
+        let curriculumStack = [];
+
+        function toggleStack(title, platform, btnIdx) {
+            const stackIdx = curriculumStack.findIndex(c => c.title === title);
+            const btn = document.getElementById(`stack-btn-${btnIdx}`);
+
+            if (stackIdx > -1) {
+                curriculumStack.splice(stackIdx, 1);
+                if(btn) {
+                    btn.classList.replace('bg-fuchsia-600', 'bg-[#2d2d30]');
+                    btn.innerHTML = `<i class="fa-solid fa-layer-group"></i> Stack`;
+                }
+            } else {
+                // Add to stack
+                curriculumStack.push({ title, platform, originalIdx: btnIdx });
+                if(btn) {
+                    btn.classList.replace('bg-[#2d2d30]', 'bg-fuchsia-600');
+                    btn.innerHTML = `<i class="fa-solid fa-check"></i> Added`;
+                }
+            }
+            updateStackUI();
+        }
+
+        function updateStackUI() {
+            const list = document.getElementById('stackList');
+            const badge = document.getElementById('stackCount');
+
+            if (curriculumStack.length === 0) {
+                list.innerHTML = '<p class="text-slate-500 text-xs italic">No courses added yet.</p>';
+                badge.classList.add('hidden');
+            } else {
+                badge.innerText = curriculumStack.length;
+                badge.classList.remove('hidden');
+
+                list.innerHTML = curriculumStack.map((c) => `
+                    <div class="flex justify-between items-center bg-[#131314] p-3 rounded-lg border border-[#3f3f46] shadow-sm">
+                        <span class="text-xs font-semibold text-slate-200 truncate pr-2" title="${c.title}">${c.title}</span>
+                        <button onclick="toggleStack('${c.title.replace(/'/g, "\\'")}', '${c.platform}', ${c.originalIdx})" class="text-red-400 hover:text-red-300 p-1">
+                            <i class="fa-solid fa-trash-can"></i>
+                        </button>
+                    </div>
+                `).join('');
+            }
+        }
+
+        async function runAudit() {
+            if (curriculumStack.length === 0) {
+                alert("Please add at least one course to your stack first.");
+                return;
+            }
+            const role = document.getElementById('targetRole').value || "Professional Developer";
+            const titles = curriculumStack.map(c => c.title);
+
+            const content = document.getElementById('auditContent');
+            content.innerHTML = '<div class="flex items-center justify-center gap-3 text-fuchsia-400 h-full flex-col"><div class="spinner border-4 border-[#2d2d30] border-t-fuchsia-500 rounded-full h-12 w-12 mb-2"></div><p class="font-bold">AI is Architecting your Curriculum...</p></div>';
+
+            try {
+                const res = await fetch('/api/audit', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ courses: titles, role: role })
+                });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    content.innerHTML = `<div class="p-2">${marked.parse(data.audit)}</div>`;
+                } else {
+                    content.innerHTML = `<p class="text-red-400 text-center mt-10">Error: ${data.message}</p>`;
+                }
+            } catch(e) {
+                content.innerHTML = `<p class="text-red-400 text-center mt-10">Network Error. Failed to connect to AI.</p>`;
+            }
+        }
+        let network = null;
+
+        function renderNetwork(networkData) {
+                const container = document.getElementById('network-container');
+                const nodes = new vis.DataSet(networkData.nodes.map(n => ({
+                    ...n,
+                    color: n.group === 'course' ? '#c084fc' : '#38bdf8',
+                    font: { color: '#ffffff', size: 14 }
+                })));
+                const edges = new vis.DataSet(networkData.edges);
+
+                const data = { nodes: nodes, edges: edges };
+                const options = {
+                    nodes: { shape: 'dot', size: 15 },
+                    edges: { color: { color: '#475569', opacity: 0.5 } },
+                    physics: { enabled: true, stabilization: { iterations: 150 } }
+                };
+
+
+                network = new vis.Network(container, data, options);
+        }
+
+        let activeTutorCourse = "";
+
+        function openTutor(title) {
+            activeTutorCourse = title;
+            const sidebar = document.getElementById('tutorSidebar');
+            const titleEl = document.getElementById('tutorCourseTitle');
+            const container = document.getElementById('tutorMessages');
+
+            titleEl.innerText = title;
+
+            sidebar.classList.remove('translate-x-full');
+            sidebar.classList.add('translate-x-0');
+
+            container.innerHTML = `
+                <div class="bg-[#1e1e1f] p-4 rounded-2xl rounded-tl-none border border-[#2d2d30] text-sm text-slate-300 leading-relaxed markdown-body">
+                    I'm ready! Ask me anything about <strong class="text-purple-400">"${title}"</strong>.
+                </div>
+            `;
+
+            // Re-bind listeners
+            const inputField = document.getElementById('sidebarTutorInput');
+            const sendBtn = document.getElementById('sidebarSendBtn');
+
+            sendBtn.onclick = () => sendTutorMessage();
+            inputField.onkeydown = (e) => {
+                if (e.key === "Enter") {
+                    e.preventDefault();
+                    sendTutorMessage();
+                }
+            };
+        }
+
+        function closeTutor() {
+            const sidebar = document.getElementById('tutorSidebar');
+            sidebar.classList.remove('translate-x-0');
+            sidebar.classList.add('translate-x-full');
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === "Escape") closeTutor();
+        });
+
+        async function sendTutorMessage() {
+            const input = document.getElementById('sidebarTutorInput');
+            const container = document.getElementById('tutorMessages');
+            const question = input.value.trim();
+
+            if(!question) return;
+
+            container.innerHTML += `
+                <div class="flex justify-end">
+                    <div class="bg-purple-600 text-white p-3 rounded-2xl rounded-tr-none text-sm max-w-[85%] shadow-lg">
+                        ${question}
+                    </div>
+                </div>
+            `;
+
+            input.value = "";
+            container.scrollTop = container.scrollHeight;
+
+            const loadingId = "loading-" + Date.now();
+            container.innerHTML += `
+                <div id="${loadingId}" class="bg-[#1e1e1f] p-4 rounded-2xl rounded-tl-none border border-[#2d2d30] text-sm text-slate-400">
+                    <div class="flex gap-1"><div class="w-1.5 h-1.5 bg-slate-500 rounded-full animate-bounce"></div><div class="w-1.5 h-1.5 bg-slate-500 rounded-full animate-bounce [animation-delay:0.2s]"></div><div class="w-1.5 h-1.5 bg-slate-500 rounded-full animate-bounce [animation-delay:0.4s]"></div></div>
+                </div>
+            `;
+
+            try {
+                const res = await fetch(`/api/tutor?course_title=${encodeURIComponent(activeTutorCourse)}&user_question=${encodeURIComponent(question)}`);
+                const data = await res.json();
+                document.getElementById(loadingId).remove();
+
+               
+                container.innerHTML += `
+                    <div class="bg-[#1e1e1f] p-4 rounded-2xl rounded-tl-none border border-[#2d2d30] text-[14px] text-slate-200 leading-relaxed shadow-sm markdown-body">
+                        ${marked.parse(data.reply)}
+                    </div>
+                `;
+                container.scrollTop = container.scrollHeight;
+            } catch(e) {
+                document.getElementById(loadingId).innerText = "Tutor connection lost.";
+            }
+        }
     </script>
+
 </body>
 </html>
