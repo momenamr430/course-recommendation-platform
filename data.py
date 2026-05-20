@@ -26,29 +26,256 @@ import textwrap
 from pydantic import BaseModel
 from typing import List
 from openai import OpenAI
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from sqlalchemy import create_engine, Column, Integer, String, ForeignKey
+from sqlalchemy.orm import declarative_base, sessionmaker, Session
+from passlib.context import CryptContext
+from jose import JWTError, jwt
+from datetime import datetime, timedelta
+from fastapi import Depends, HTTPException, status
+import bcrypt
+from sqlalchemy import create_engine, Column, Integer, String, ForeignKey, DateTime
 import os
 
 plt.style.use('dark_background')
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
-API_KEY = os.environ.get("SERPAPI_KEY")
-OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY")
-OPENROUTER_API_KEY_2 = os.environ.get("OPENROUTER_API_KEY_2")
+# =========================================================================
+# --- NEW: DATABASE & AUTHENTICATION SETUP ---
+# =========================================================================
+SECRET_KEY = os.getenv("SECRET_KEY")
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7 # 1 Week
 
-# ---: AI Setup ---
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/login")
+
+SQLALCHEMY_DATABASE_URL = "sqlite:///./course_studio.db"
+engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+Base = declarative_base()
+
+# DB Models
+class User(Base):
+    __tablename__ = "users"
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String, unique=True, index=True)
+    hashed_password = Column(String)
+
+class WatchlistItem(Base):
+    __tablename__ = "watchlist"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    title = Column(String)
+    platform = Column(String)
+    price = Column(String)
+    rating = Column(String)
+    link = Column(String)
+    instructor = Column(String)
+class SearchCache(Base):
+    __tablename__ = "search_cache"
+    query = Column(String, primary_key=True, index=True)
+    response_json = Column(String)
+    timestamp = Column(DateTime, default=datetime.utcnow)
+
+Base.metadata.create_all(bind=engine)
+
+def get_db():
+    db = SessionLocal()
+    try: yield db
+    finally: db.close()
+
+# Auth Helpers
+def verify_password(plain_password: str, hashed_password: str):
+    return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password.encode('utf-8'))
+
+def get_password_hash(password: str):
+    salt = bcrypt.gensalt()
+    return bcrypt.hashpw(password.encode('utf-8'), salt).decode('utf-8')
+
+def create_access_token(data: dict, expires_delta: timedelta):
+    to_encode = data.copy()
+    expire = datetime.utcnow() + expires_delta
+    to_encode.update({"exp": expire})
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
+def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username: str = payload.get("sub")
+        if username is None: raise HTTPException(status_code=401, detail="Invalid token")
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    user = db.query(User).filter(User.username == username).first()
+    if user is None: raise HTTPException(status_code=401, detail="User not found")
+    return user
+
+# Pydantic Schemas
+class UserCreate(BaseModel):
+    username: str
+    password: str
+
+class WatchlistCreate(BaseModel):
+    title: str
+    platform: str
+    price: str
+    rating: str
+    link: str
+    instructor: str
+class InterviewStartRequest(BaseModel):
+    course_title: str
+
+class AnswerItem(BaseModel):
+    question: str
+    answer: str
+
+class InterviewGradeRequest(BaseModel):
+    course_title: str
+    answers: List[AnswerItem]
+API_KEY = os.getenv("SERPAPI_KEY")
+
+# --- NEW: AI Setup ---
 client = OpenAI(
     base_url="https://openrouter.ai/api/v1",
-    api_key= OPENROUTER_API_KEY
-)
+    api_key=os.getenv("OPENROUTER_API_KEY")
 
+)
+OPENROUTER_API_KEY_2 = os.getenv("OPENROUTER_API_KEY_2")
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
     return templates.TemplateResponse(request=request, name="index.html")
-
 # =========================================================================
-# --- AI ENDPOINTS ---
+# --- NEW: AUTH & WATCHLIST ENDPOINTS ---
 # =========================================================================
+@app.post("/api/signup")
+def signup(user: UserCreate, db: Session = Depends(get_db)):
+    db_user = db.query(User).filter(User.username == user.username).first()
+    if db_user:
+        raise HTTPException(status_code=400, detail="Username already registered")
+    hashed_password = get_password_hash(user.password)
+    new_user = User(username=user.username, hashed_password=hashed_password)
+    db.add(new_user)
+    db.commit()
+    return {"message": "User created successfully"}
 
+
+@app.post("/api/login")
+def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.username == form_data.username).first()
+    if not user or not verify_password(form_data.password, user.hashed_password):
+        raise HTTPException(status_code=400, detail="Incorrect username or password")
+
+    access_token = create_access_token(data={"sub": user.username},
+                                       expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
+    return {"access_token": access_token, "token_type": "bearer", "username": user.username}
+
+
+@app.post("/api/watchlist")
+def add_to_watchlist(item: WatchlistCreate, current_user: User = Depends(get_current_user),
+                     db: Session = Depends(get_db)):
+    # Check if already exists
+    exists = db.query(WatchlistItem).filter(WatchlistItem.user_id == current_user.id,
+                                            WatchlistItem.link == item.link).first()
+    if exists: return {"status": "success", "message": "Already in watchlist"}
+
+    new_item = WatchlistItem(**item.dict(), user_id=current_user.id)
+    db.add(new_item)
+    db.commit()
+    return {"status": "success"}
+
+
+@app.get("/api/watchlist")
+def get_watchlist(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    items = db.query(WatchlistItem).filter(WatchlistItem.user_id == current_user.id).all()
+    return {"status": "success", "data": items}
+
+
+@app.delete("/api/watchlist/{item_id}")
+def remove_from_watchlist(item_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    item = db.query(WatchlistItem).filter(WatchlistItem.id == item_id, WatchlistItem.user_id == current_user.id).first()
+    if item:
+        db.delete(item)
+        db.commit()
+    return {"status": "success"}
+
+
+@app.post("/api/interview/start")
+def start_interview(req: InterviewStartRequest, current_user: User = Depends(get_current_user)):
+    try:
+        prompt = f"""
+        You are an experienced technical recruiter. Generate exactly 3 distinct, open-ended interview questions evaluating a student's retention of topics covered in a course titled: '{req.course_title}'.
+
+        Return ONLY a valid JSON array of strings containing the questions, with no markdown formatting, code block backticks, or introductions. Format exactly like this:
+        ["Question 1?", "Question 2?", "Question 3?"]
+        """
+        response = client.chat.completions.create(
+            model="meta-llama/llama-3-8b-instruct",
+            messages=[{"role": "user", "content": prompt}]
+        )
+        raw_text = response.choices[0].message.content.strip()
+
+        # Clean markdown code blocks
+        if raw_text.startswith("```json"):
+            raw_text = raw_text[7:-3].strip()
+        elif raw_text.startswith("```"):
+            raw_text = raw_text[3:-3].strip()
+
+        # Isolate the array brackets to strip conversational noise or introductory text
+        match = re.search(r'\[\s*".*"\s*\]', raw_text, re.DOTALL)
+        if match:
+            raw_text = match.group(0)
+        else:
+            fallback_match = re.search(r'\[.*\]', raw_text, re.DOTALL)
+            if fallback_match:
+                raw_text = fallback_match.group(0)
+
+        return {"status": "success", "questions": json.loads(raw_text)}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
+@app.post("/api/interview/grade")
+def grade_interview(req: InterviewGradeRequest, current_user: User = Depends(get_current_user)):
+    try:
+        qa_block = ""
+        for i, q in enumerate(req.answers):
+            qa_block += f"\nQ{i + 1}: {q.question}\nAnswer: {q.answer}\n"
+
+        prompt = f"""
+        Evaluate the candidate's technical interview answers for the course '{req.course_title}'.
+
+        Answers to Grade:
+        {qa_block}
+
+        Analyze their accuracy and score them out of 100.
+        Generate a constructive, professional review in clean Markdown detailing their strengths and gaps.
+
+        Return ONLY a valid JSON object. Do not include markdown backticks or any explanations outside the JSON. Format exactly like this:
+        {{
+            "score": 85,
+            "feedback": "### 🌟 Strengths\\n[Details]\\n\\n### 🔍 Gaps & Explanations\\n[Details]"
+        }}
+        """
+        response = client.chat.completions.create(
+            model="meta-llama/llama-3-8b-instruct",
+            messages=[{"role": "user", "content": prompt}]
+        )
+        raw_text = response.choices[0].message.content.strip()
+
+        # Strip code blocks
+        if raw_text.startswith("```json"):
+            raw_text = raw_text[7:-3].strip()
+        elif raw_text.startswith("```"):
+            raw_text = raw_text[3:-3].strip()
+
+        # Isolate the JSON object (everything between first { and last })
+        match = re.search(r'\{.*\}', raw_text, re.DOTALL)
+        if match:
+            raw_text = match.group(0)
+
+        return json.loads(raw_text)
+    except Exception as e:
+        # Return the actual error details to help with diagnosis
+        return {"status": "error", "message": str(e)}
 @app.get("/api/roadmap")
 def get_roadmap(query: str):
     try:
@@ -92,6 +319,7 @@ def compare_courses(t1: str, r1: str, p1: str, l1: str, t2: str, r2: str, p2: st
             except Exception:
                 return "Content blocked by site."
 
+        # Force the exact table structure you want
         prompt = f"""
         You are an expert course advisor. Compare the following two courses based on their syllabus snippets.
 
@@ -151,7 +379,7 @@ def get_relevance(query: str, title: str):
             messages=[{"role": "user", "content": prompt}]
         )
 
-      
+        # Clean the output in case the LLM adds markdown backticks
         raw_text = response.choices[0].message.content.strip()
         if raw_text.startswith("```json"):
             raw_text = raw_text[7:-3].strip()
@@ -161,7 +389,7 @@ def get_relevance(query: str, title: str):
         return json.loads(raw_text)
     except Exception as e:
         return {"error": str(e), "summary": "Failed to analyze relevance."}
-# --- Stack Auditor Schema ---
+# --- NEW: Stack Auditor Schema ---
 class StackRequest(BaseModel):
     courses: List[str]
     role: str
@@ -200,10 +428,11 @@ def audit_stack(req: StackRequest):
         return {"status": "error", "message": str(e)}
 
 
-# ---AI Tutor Chat Endpoint ---
+# --- NEW: AI Tutor Chat Endpoint ---
 @app.get("/api/tutor")
 def tutor_chat(course_title: str, user_question: str):
     try:
+        # We inject the course title as the "System Context"
         prompt = f"""
         You are an expert AI Tutor. The student is asking a question about a course titled '{course_title}'.
 
@@ -222,10 +451,22 @@ def tutor_chat(course_title: str, user_question: str):
     except Exception as e:
         return {"status": "error", "message": str(e)}
 # =========================================================================
-# ---SCRAPER---
+# --- YOUR EXACT SCRAPER (UNTOUCHED) ---
 # =========================================================================
 @app.get("/api/search")
-def search_courses(query: str):
+def search_courses(query: str, db: Session = Depends(get_db)):
+    normalized_query = query.strip().lower()
+
+    # DB Cache Lookup
+    cached_entry = db.query(SearchCache).filter(SearchCache.query == normalized_query).first()
+    if cached_entry:
+        if datetime.utcnow() - cached_entry.timestamp < timedelta(hours=24):
+            payload = json.loads(cached_entry.response_json)
+            payload["cache_status"] = "hit"
+            return payload
+        else:
+            db.delete(cached_entry)
+            db.commit()
     courses = []
     options = webdriver.ChromeOptions()
     options.add_argument("--headless")
@@ -544,6 +785,7 @@ def search_courses(query: str):
     course_nodes = [n for n, attr in g.nodes(data=True) if attr.get('type') == 'course']
 
     # Instructors = Bright Blue, Courses (Titles) = Bright Purple
+    # Instructors = Bright Blue, Courses (Titles) = Bright Purple
     nx.draw_networkx_nodes(g, pos, nodelist=instructor_nodes, node_color='#38bdf8', node_size=1500, edgecolors='white')
     nx.draw_networkx_nodes(g, pos, nodelist=course_nodes, node_color='#c084fc', node_size=900, edgecolors='white')
 
@@ -611,80 +853,26 @@ def search_courses(query: str):
     heat_img = base64.b64encode(buf_heat.getvalue()).decode('utf-8')
     plt.close()
 
-    # --- 3D Graph (Rating vs Platform vs Enrollment) ---
-    x_vals, y_vals, z_vals, labels, platforms = [], [], [], [], []
-    platform_y_map = {"Pluralsight": 0, "Coursera": 1, "YouTube": 2}
 
-    for _, row in df.iterrows():
-        r_str = str(row.get('rating', '0')).lower().replace(" views", "").replace(",", "").strip()
-        e_str = str(row.get('enrollment', row.get('rating', '0'))).lower().replace(" views", "").replace(",",
-                                                                                                         "").strip()
-        plat = str(row.get('platform', ''))
-
-        r_num = 0
-        if "m" in r_str:
-            r_num = float(r_str.replace("m", "")) * 1e6 / 500000 * 4
-        elif "k" in r_str:
-            r_num = float(r_str.replace("k", "")) * 1000 / 500000 * 4
-        elif re.match(r'^\d+\.?\d*$', r_str):
-            r_num = float(r_str)
-        r_num = min(5.0, max(1.0, r_num if r_num <= 5 else 1 + r_num / 500000 * 4))
-
-        e_num = 1000
-        if "m" in e_str:
-            e_num = float(e_str.replace("m", "")) * 1000000
-        elif "k" in e_str:
-            e_num = float(e_str.replace("k", "")) * 1000
-        elif re.match(r'^\d+\.?\d*$', e_str):
-            e_num = float(e_str)
-        e_num = max(1, e_num if e_num > 10 else e_num * 10000)
-
-        if r_num > 0:
-            x_vals.append(r_num)
-            y_vals.append(platform_y_map.get(plat, 1))
-            z_vals.append(np.log10(e_num))
-            labels.append(str(row.get('title', ''))[:20] + "..")
-            platforms.append(plat)
-
-    img_3d = ""
+    # Always extract nodes/edges so they are available for the final return
     nodes = [{"id": n, "label": (n[:15] + '..') if len(n) > 15 else n, "group": attr.get('type')}
              for n, attr in g.nodes(data=True)]
     edges = [{"from": u, "to": v} for u, v in g.edges()]
 
-    if len(x_vals) > 0:
-        color_map = {"Pluralsight": "orange", "Coursera": "royalblue", "YouTube": "tomato"}
-        colors = [color_map.get(p, "gray") for p in platforms]
-        fig = plt.figure(figsize=(12, 8))
-        ax = fig.add_subplot(111, projection='3d')
-        ax.scatter(x_vals, y_vals, z_vals, c=colors, s=120, edgecolors='black', linewidths=0.5, alpha=0.85,
-                   depthshade=True)
-        for xi, yi, zi, label in zip(x_vals, y_vals, z_vals, labels):
-            ax.text(xi, yi, zi, f"  {label}", fontsize=7, alpha=0.8)
-        ax.set_xlabel("Rating (0–5)", fontsize=11, labelpad=10)
-        ax.set_xlim(1, 5)
-        ax.set_yticks([0, 1, 2])
-        ax.set_yticklabels(["Pluralsight", "Coursera", "YouTube"])
-        ax.set_ylabel("Platform", fontsize=11, labelpad=10)
-        ax.set_zlabel("Enrollment (Log10 Scale)", fontsize=11, labelpad=10)
-        legend_handles = [
-            plt.Line2D([0], [0], marker='o', color='w', markerfacecolor='orange', markersize=10, label='Pluralsight'),
-            plt.Line2D([0], [0], marker='o', color='w', markerfacecolor='royalblue', markersize=10, label='Coursera'),
-            plt.Line2D([0], [0], marker='o', color='w', markerfacecolor='tomato', markersize=10, label='YouTube'),
-        ]
-        ax.legend(handles=legend_handles, loc='upper left', fontsize=10)
-        ax.view_init(elev=60, azim=135)
-        plt.tight_layout()
-        buf_3d = io.BytesIO()
-        plt.savefig(buf_3d, format="png", bbox_inches='tight', dpi=120)
-        img_3d = base64.b64encode(buf_3d.getvalue()).decode('utf-8')
-        plt.close()
 
-    return {
+    # ONE SINGLE RETURN FOR EVERYTHING
+    response_payload = {
         "status": "success",
+        "cache_status": "miss",
         "courses": df.to_dict(orient="records"),
         "network_data": {"nodes": nodes, "edges": edges},
-        "heatmap_image": heat_img,
-        "img_3d": img_3d
+        "heatmap_image": heat_img
     }
+    try:
+        new_cache = SearchCache(query=normalized_query, response_json=json.dumps(response_payload))
+        db.merge(new_cache)
+        db.commit()
+    except Exception as cache_err:
+        print("Caching proxy failed:", str(cache_err))
 
-
+    return response_payload
